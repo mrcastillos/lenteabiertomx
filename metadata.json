@@ -1,0 +1,6 @@
+{
+  "name": "Lente Abierto MX - Portafolio y Galerías Pixieset",
+  "description": "Portafolio fotográfico profesional para Lente Abierto MX estilo Pixieset, con galerías con PIN de descarga, marcas de agua anticaptura, descarga en ZIP y sincronización con Google Drive.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
