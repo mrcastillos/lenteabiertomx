@@ -18,6 +18,7 @@ import { Photo, Gallery } from '../types';
 import { WatermarkCanvas } from './WatermarkCanvas';
 import { downloadSingleCleanPhoto } from '../services/zipDownloader';
 import { getAccessToken } from '../services/firebase';
+import { getClientSessionInfo, recordDownloadLog, recordFavoriteLog, removeFavoriteLog } from '../services/storage';
 
 interface PhotoLightboxProps {
   gallery: Gallery;
@@ -29,6 +30,7 @@ interface PhotoLightboxProps {
   isFavorite: boolean;
   onToggleFavorite: (photoId: string) => void;
   onRequestPin: (actionType: 'single', onSuccess: () => void) => void;
+  onRequestFavorite?: (photo: Photo) => void;
   isPinVerified: boolean;
 }
 
@@ -42,6 +44,7 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
   isFavorite,
   onToggleFavorite,
   onRequestPin,
+  onRequestFavorite,
   isPinVerified,
 }) => {
   const [showInfo, setShowInfo] = useState(false);
@@ -50,6 +53,32 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
   const [isDownloading, setIsDownloading] = useState(false);
 
   const currentPhoto = photos[currentIndex];
+
+  const handleToggleFavClick = () => {
+    const client = getClientSessionInfo();
+    if (!isFavorite && !client) {
+      if (onRequestFavorite) {
+        onRequestFavorite(currentPhoto);
+        return;
+      }
+    }
+    onToggleFavorite(currentPhoto.id);
+    if (!isFavorite && client) {
+      recordFavoriteLog({
+        galleryId: gallery.id,
+        galleryTitle: gallery.title,
+        photoId: currentPhoto.id,
+        photoTitle: currentPhoto.title || 'Foto de Colección',
+        photoUrl: currentPhoto.url,
+        photoThumbnailUrl: currentPhoto.thumbnailUrl || currentPhoto.url,
+        userName: client.name,
+        userEmail: client.email,
+        userPhone: client.phone,
+      });
+    } else if (isFavorite && client) {
+      removeFavoriteLog(currentPhoto.id, client.email);
+    }
+  };
 
   const handlePrev = useCallback(() => {
     if (currentIndex > 0) {
@@ -124,9 +153,20 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
   };
 
   const handleDownloadClick = () => {
-    if (gallery.downloadPin && !isPinVerified) {
+    const client = getClientSessionInfo();
+    if (!client || (gallery.downloadPin && !isPinVerified)) {
       onRequestPin('single', executeDownload);
     } else {
+      recordDownloadLog({
+        galleryId: gallery.id,
+        galleryTitle: gallery.title,
+        photoId: currentPhoto.id,
+        photoTitle: currentPhoto.title || 'Foto Individual',
+        type: 'single',
+        userName: client.name,
+        userEmail: client.email,
+        userPhone: client.phone,
+      });
       executeDownload();
     }
   };
@@ -169,7 +209,7 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Favorite button */}
           <button
-            onClick={() => onToggleFavorite(currentPhoto.id)}
+            onClick={handleToggleFavClick}
             className={`p-2 rounded-full transition-colors ${
               isFavorite
                 ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'

@@ -37,6 +37,8 @@ import {
   EyeOff,
   Upload,
   Search,
+  Download,
+  Heart,
 } from 'lucide-react';
 import {
   Gallery,
@@ -48,6 +50,8 @@ import {
   PricingPackage,
   UserProfile,
   InstagramPost,
+  DownloadLog,
+  FavoriteLog,
 } from '../types';
 import {
   fetchPhotosFromScriptApi,
@@ -69,6 +73,11 @@ import {
   getStoredInstagramPosts,
   saveInstagramPosts,
   resetInstagramPosts,
+  getStoredDownloadLogs,
+  clearDownloadLogs,
+  getStoredFavoriteLogs,
+  clearFavoriteLogs,
+  removeFavoriteLog,
 } from '../services/storage';
 import {
   getStoredAdminCredentials,
@@ -101,12 +110,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onSaveSiteContent,
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'galleries' | 'portalConfig' | 'categories' | 'driveSync' | 'newGallery' | 'inquiries' | 'siteCms' | 'users'
+    'galleries' | 'portalConfig' | 'categories' | 'driveSync' | 'newGallery' | 'inquiries' | 'downloads' | 'favorites' | 'siteCms' | 'users'
   >('galleries');
 
   const [cmsContent, setCmsContent] = useState<SiteContentConfig>(siteContent || getStoredSiteContent());
   const [cmsSaveSuccess, setCmsSaveSuccess] = useState(false);
   const [cmsSubTab, setCmsSubTab] = useState<'bio' | 'hero' | 'contact' | 'pricing' | 'announcement' | 'instagram'>('bio');
+
+  // Download Logs State
+  const [downloadLogs, setDownloadLogs] = useState<DownloadLog[]>([]);
+  const [downloadSearch, setDownloadSearch] = useState('');
+  const [downloadFilterType, setDownloadFilterType] = useState<'todos' | 'zip' | 'single'>('todos');
+
+  // Favorites Logs State
+  const [favoriteLogs, setFavoriteLogs] = useState<FavoriteLog[]>([]);
+  const [favoriteSearch, setFavoriteSearch] = useState('');
+  const [selectedClientForFavs, setSelectedClientForFavs] = useState<string | null>(null);
 
   // Admin Credentials Management State
   const [adminCreds, setAdminCreds] = useState<AdminCredentials>(getStoredAdminCredentials());
@@ -156,6 +175,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   useEffect(() => {
     setUserList(getStoredUsers());
     setAdminCreds(getStoredAdminCredentials());
+    setDownloadLogs(getStoredDownloadLogs());
+    setFavoriteLogs(getStoredFavoriteLogs());
   }, []);
 
   useEffect(() => {
@@ -603,6 +624,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         >
           <Inbox className="w-3.5 h-3.5" />
           <span>Cotizaciones ({inquiries.length})</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setDownloadLogs(getStoredDownloadLogs());
+            setActiveTab('downloads');
+          }}
+          className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+            activeTab === 'downloads'
+              ? 'bg-amber-500 text-black font-semibold'
+              : 'text-zinc-400 hover:text-white'
+          }`}
+        >
+          <Download className="w-3.5 h-3.5" />
+          <span>Descargas ({downloadLogs.length})</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setFavoriteLogs(getStoredFavoriteLogs());
+            setActiveTab('favorites');
+          }}
+          className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+            activeTab === 'favorites'
+              ? 'bg-rose-500 text-white font-semibold shadow-lg shadow-rose-500/20'
+              : 'text-zinc-400 hover:text-white'
+          }`}
+        >
+          <Heart className="w-3.5 h-3.5 text-rose-400" />
+          <span>Favoritos ({favoriteLogs.length})</span>
         </button>
 
         <button
@@ -1611,7 +1662,506 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       )}
 
-      {/* TAB 6: SITE CMS / CUSTOMIZATION */}
+      {/* TAB 7: DOWNLOADS & CLIENT REGISTRATION LOG */}
+      {activeTab === 'downloads' && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-white/5">
+            <div>
+              <div className="flex items-center gap-2 text-amber-400 text-xs font-mono uppercase tracking-widest mb-1">
+                <Download className="w-4 h-4" />
+                <span>Control de Entregas Digitales</span>
+              </div>
+              <h3 className="font-editorial text-2xl sm:text-3xl text-white">
+                Registro de Descargas de Clientes
+              </h3>
+              <p className="text-xs text-zinc-400 mt-1">
+                Monitorea qué clientes han descargado tus galerías, sus correos válidos, teléfonos y fecha exacta de entrega.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const headers = 'Fecha,Cliente,Email,Telefono,Galeria,Tipo,Archivo\n';
+                  const rows = downloadLogs
+                    .map((d) =>
+                      `"${new Date(d.timestamp).toLocaleString('es-MX')}","${d.userName}","${d.userEmail}","${d.userPhone || ''}","${d.galleryTitle}","${d.type === 'zip' ? 'Colección ZIP' : 'Foto Individual'}","${d.photoTitle || ''}"`
+                    )
+                    .join('\n');
+                  const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `LenteAbiertoMX_RegistroDescargas_${new Date().toISOString().split('T')[0]}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                disabled={downloadLogs.length === 0}
+                className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black text-xs font-semibold tracking-wider uppercase transition-all flex items-center gap-2"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Exportar CSV</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('¿Seguro que deseas vaciar el historial de descargas?')) {
+                    clearDownloadLogs();
+                    setDownloadLogs([]);
+                  }
+                }}
+                disabled={downloadLogs.length === 0}
+                className="px-3.5 py-2 rounded-xl bg-red-950/30 hover:bg-red-900/40 disabled:opacity-40 text-red-300 border border-red-500/20 text-xs tracking-wider uppercase transition-all flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Limpiar</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Metric Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-5 rounded-2xl bg-[#141518] border border-white/5">
+              <span className="text-[11px] font-mono uppercase tracking-widest text-zinc-500 block mb-1">
+                Total Descargas
+              </span>
+              <div className="text-3xl font-editorial text-white">{downloadLogs.length}</div>
+              <span className="text-[11px] text-zinc-500 mt-1 block">Registros capturados</span>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-[#141518] border border-white/5">
+              <span className="text-[11px] font-mono uppercase tracking-widest text-amber-400/90 block mb-1">
+                Colecciones ZIP
+              </span>
+              <div className="text-3xl font-editorial text-amber-300">
+                {downloadLogs.filter((d) => d.type === 'zip').length}
+              </div>
+              <span className="text-[11px] text-zinc-500 mt-1 block">Galerías completas</span>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-[#141518] border border-white/5">
+              <span className="text-[11px] font-mono uppercase tracking-widest text-cyan-400 block mb-1">
+                Fotos Individuales
+              </span>
+              <div className="text-3xl font-editorial text-cyan-300">
+                {downloadLogs.filter((d) => d.type === 'single').length}
+              </div>
+              <span className="text-[11px] text-zinc-500 mt-1 block">Descargas directas JPG</span>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-[#141518] border border-white/5">
+              <span className="text-[11px] font-mono uppercase tracking-widest text-emerald-400 block mb-1">
+                Clientes Únicos
+              </span>
+              <div className="text-3xl font-editorial text-emerald-300">
+                {new Set(downloadLogs.map((d) => d.userEmail.toLowerCase())).size}
+              </div>
+              <span className="text-[11px] text-zinc-500 mt-1 block">Emails verificados</span>
+            </div>
+          </div>
+
+          {/* Search & Filter Bar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 bg-[#141518] rounded-2xl border border-white/5">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={downloadSearch}
+                onChange={(e) => setDownloadSearch(e.target.value)}
+                placeholder="Buscar por nombre, correo, teléfono o nombre de galería..."
+                className="w-full pl-10 pr-4 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 font-mono text-[11px]">
+              {(['todos', 'zip', 'single'] as const).map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setDownloadFilterType(filter)}
+                  className={`px-3 py-1.5 rounded-lg uppercase tracking-wider transition-colors ${
+                    downloadFilterType === filter
+                      ? 'bg-amber-500 text-black font-semibold'
+                      : 'bg-white/5 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  {filter === 'todos' ? 'Todos' : filter === 'zip' ? 'Solo ZIP' : 'Solo Fotos'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Table / List */}
+          {downloadLogs.length === 0 ? (
+            <div className="text-center py-20 bg-white/[0.02] border border-white/5 rounded-2xl p-8">
+              <Download className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
+              <h4 className="text-base font-editorial text-zinc-300">No hay descargas registradas aún</h4>
+              <p className="text-xs text-zinc-500 mt-1 max-w-md mx-auto leading-relaxed">
+                Cada vez que un cliente descargue una fotografía o la galería completa en ZIP, su nombre, correo válido y teléfono quedarán registrados aquí automáticamente.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-[#121316] rounded-2xl border border-white/5 overflow-hidden shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#181a1f] text-zinc-400 font-mono uppercase tracking-wider text-[11px] border-b border-white/5">
+                    <tr>
+                      <th className="py-3 px-4">Fecha & Hora</th>
+                      <th className="py-3 px-4">Cliente</th>
+                      <th className="py-3 px-4">Correo Electrónico</th>
+                      <th className="py-3 px-4">Teléfono / WhatsApp</th>
+                      <th className="py-3 px-4">Galería</th>
+                      <th className="py-3 px-4">Tipo</th>
+                      <th className="py-3 px-4">Detalle</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {downloadLogs
+                      .filter((log) => {
+                        if (downloadFilterType !== 'todos' && log.type !== downloadFilterType) {
+                          return false;
+                        }
+                        if (!downloadSearch.trim()) return true;
+                        const q = downloadSearch.toLowerCase();
+                        return (
+                          log.userName.toLowerCase().includes(q) ||
+                          log.userEmail.toLowerCase().includes(q) ||
+                          (log.userPhone && log.userPhone.includes(q)) ||
+                          log.galleryTitle.toLowerCase().includes(q) ||
+                          (log.photoTitle && log.photoTitle.toLowerCase().includes(q))
+                        );
+                      })
+                      .map((log) => (
+                        <tr key={log.id} className="hover:bg-white/[0.02] transition-colors">
+                          <td className="py-3.5 px-4 font-mono text-zinc-400 whitespace-nowrap text-[11px]">
+                            {new Date(log.timestamp).toLocaleDateString('es-MX', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </td>
+
+                          <td className="py-3.5 px-4 font-medium text-white whitespace-nowrap">
+                            <span className="flex items-center gap-2">
+                              <span className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-400 font-bold flex items-center justify-center text-[10px]">
+                                {log.userName.charAt(0).toUpperCase()}
+                              </span>
+                              {log.userName}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-4 font-mono text-zinc-300 whitespace-nowrap">
+                            <a
+                              href={`mailto:${log.userEmail}?subject=Entrega de Fotografías Lente Abierto MX - ${encodeURIComponent(log.galleryTitle)}`}
+                              className="hover:text-amber-400 flex items-center gap-1.5 transition-colors"
+                              title="Enviar correo"
+                            >
+                              <Mail className="w-3.5 h-3.5 text-zinc-500 hover:text-amber-400" />
+                              <span>{log.userEmail}</span>
+                            </a>
+                          </td>
+
+                          <td className="py-3.5 px-4 font-mono text-zinc-400 whitespace-nowrap">
+                            {log.userPhone ? (
+                              <a
+                                href={`https://wa.me/${log.userPhone.replace(/[^0-9]/g, '')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-emerald-400/90 hover:text-emerald-300 flex items-center gap-1.5 transition-colors"
+                                title="Abrir chat en WhatsApp"
+                              >
+                                <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>{log.userPhone}</span>
+                              </a>
+                            ) : (
+                              <span className="text-zinc-600 italic">No registrado</span>
+                            )}
+                          </td>
+
+                          <td className="py-3.5 px-4 text-zinc-300 font-medium">
+                            {log.galleryTitle}
+                          </td>
+
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            {log.type === 'zip' ? (
+                              <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono text-[10px] uppercase tracking-wider">
+                                Colección ZIP
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-mono text-[10px] uppercase tracking-wider">
+                                Foto JPG
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-3.5 px-4 text-zinc-400 text-[11px] truncate max-w-[200px]">
+                            {log.photoTitle || 'Colección Completa'}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 8: CLIENT FAVORITES TRACKING (SELECCIÓN PARA ÁLBUM Y VENTA) */}
+      {activeTab === 'favorites' && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-white/5">
+            <div>
+              <div className="flex items-center gap-2 text-rose-400 text-xs font-mono uppercase tracking-widest mb-1">
+                <Heart className="w-4 h-4 fill-rose-400 text-rose-400" />
+                <span>Selección para Álbum Físico & Edición</span>
+              </div>
+              <h3 className="font-editorial text-2xl sm:text-3xl text-white">
+                Favoritos Seleccionados por Clientes
+              </h3>
+              <p className="text-xs text-zinc-400 mt-1">
+                Conoce exactamente qué fotografías eligieron tus clientes con el corazón ❤️ para maquilar su álbum impreso, retoque de piel o ventas adicionales.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const headers = 'Fecha,Cliente,Email,Telefono,Galeria,FotoTitulo,FotoUrl\n';
+                  const rows = favoriteLogs
+                    .map((f) =>
+                      `"${new Date(f.timestamp).toLocaleString('es-MX')}","${f.userName}","${f.userEmail}","${f.userPhone || ''}","${f.galleryTitle}","${f.photoTitle}","${f.photoUrl}"`
+                    )
+                    .join('\n');
+                  const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `LenteAbiertoMX_SeleccionFavoritos_${new Date().toISOString().split('T')[0]}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                disabled={favoriteLogs.length === 0}
+                className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white text-xs font-semibold tracking-wider uppercase transition-all flex items-center gap-2 shadow-lg shadow-rose-600/20"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Exportar CSV</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('¿Seguro que deseas vaciar el historial de favoritos?')) {
+                    clearFavoriteLogs();
+                    setFavoriteLogs([]);
+                  }
+                }}
+                disabled={favoriteLogs.length === 0}
+                className="px-3.5 py-2 rounded-xl bg-red-950/30 hover:bg-red-900/40 disabled:opacity-40 text-red-300 border border-red-500/20 text-xs tracking-wider uppercase transition-all flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Limpiar</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Metric Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-5 rounded-2xl bg-[#141518] border border-white/5">
+              <span className="text-[11px] font-mono uppercase tracking-widest text-zinc-500 block mb-1">
+                Total Fotos Favoritas
+              </span>
+              <div className="text-3xl font-editorial text-white">{favoriteLogs.length}</div>
+              <span className="text-[11px] text-zinc-500 mt-1 block">Marcadas con ❤️ por clientes</span>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-[#141518] border border-white/5">
+              <span className="text-[11px] font-mono uppercase tracking-widest text-rose-400 block mb-1">
+                Clientes con Selección
+              </span>
+              <div className="text-3xl font-editorial text-rose-400">
+                {new Set(favoriteLogs.map((f) => f.userEmail.toLowerCase())).size}
+              </div>
+              <span className="text-[11px] text-zinc-500 mt-1 block">Listas listas para entrega</span>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-[#141518] border border-white/5">
+              <span className="text-[11px] font-mono uppercase tracking-widest text-amber-400 block mb-1">
+                Promedio por Cliente
+              </span>
+              <div className="text-3xl font-editorial text-amber-300">
+                {favoriteLogs.length > 0 && new Set(favoriteLogs.map((f) => f.userEmail.toLowerCase())).size > 0
+                  ? Math.round(favoriteLogs.length / new Set(favoriteLogs.map((f) => f.userEmail.toLowerCase())).size)
+                  : 0}
+              </div>
+              <span className="text-[11px] text-zinc-500 mt-1 block">Fotos elegidas por sesión</span>
+            </div>
+          </div>
+
+          {/* Search bar */}
+          <div className="p-3 bg-[#141518] rounded-2xl border border-white/5">
+            <div className="relative">
+              <Search className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={favoriteSearch}
+                onChange={(e) => setFavoriteSearch(e.target.value)}
+                placeholder="Buscar por cliente, correo o nombre de galería..."
+                className="w-full pl-10 pr-4 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-rose-500"
+              />
+            </div>
+          </div>
+
+          {/* Grouped by Client Lists */}
+          {favoriteLogs.length === 0 ? (
+            <div className="text-center py-20 bg-white/[0.02] border border-white/5 rounded-2xl p-8">
+              <Heart className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
+              <h4 className="text-base font-editorial text-zinc-300">No hay fotos favoritas registradas aún</h4>
+              <p className="text-xs text-zinc-500 mt-1 max-w-md mx-auto leading-relaxed">
+                Cuando tus clientes entren a sus galerías y presionen el corazón ❤️ en las fotos que más les gusten, aquí se creará automáticamente su lista para que prepares su álbum físico o impresiones.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Group favorites by userEmail */}
+              {Array.from(new Set(favoriteLogs.map((f) => f.userEmail.toLowerCase())))
+                .filter((email) => {
+                  if (!favoriteSearch.trim()) return true;
+                  const q = favoriteSearch.toLowerCase();
+                  const clientLogs = favoriteLogs.filter((f) => f.userEmail.toLowerCase() === email);
+                  return (
+                    email.includes(q) ||
+                    clientLogs.some(
+                      (l) =>
+                        l.userName.toLowerCase().includes(q) ||
+                        (l.userPhone && l.userPhone.includes(q)) ||
+                        l.galleryTitle.toLowerCase().includes(q)
+                    )
+                  );
+                })
+                .map((clientEmail) => {
+                  const clientFavs = favoriteLogs.filter(
+                    (f) => f.userEmail.toLowerCase() === clientEmail
+                  );
+                  const firstLog = clientFavs[0];
+                  const photoTitlesList = clientFavs.map((f, idx) => `${idx + 1}. ${f.photoTitle}`).join('\n');
+
+                  return (
+                    <div
+                      key={clientEmail}
+                      className="p-6 rounded-2xl bg-[#121316] border border-white/5 space-y-5 shadow-xl"
+                    >
+                      {/* Client Header Card */}
+                      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-white/5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold flex items-center justify-center text-lg">
+                            {firstLog.userName.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-editorial text-xl text-white font-medium">
+                                {firstLog.userName}
+                              </h4>
+                              <span className="px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-300 font-mono text-[10px]">
+                                {clientFavs.length} fotos elegidas
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-400 mt-1">
+                              <span className="font-mono text-zinc-300 flex items-center gap-1">
+                                <Mail className="w-3 h-3 text-zinc-500" />
+                                {clientEmail}
+                              </span>
+                              {firstLog.userPhone && (
+                                <span className="font-mono text-emerald-400 flex items-center gap-1">
+                                  <Phone className="w-3 h-3" />
+                                  {firstLog.userPhone}
+                                </span>
+                              )}
+                              <span className="text-zinc-500">·</span>
+                              <span className="text-amber-400 font-medium">
+                                Galería: {firstLog.galleryTitle}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action buttons for this client */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(photoTitlesList);
+                              alert(`Se copiaron al portapapeles ${clientFavs.length} títulos de fotos para tu software de edición o laboratorio de impresión.`);
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-200 border border-white/10 text-xs font-mono flex items-center gap-1.5 transition-colors"
+                            title="Copiar lista de fotos seleccionadas"
+                          >
+                            <Copy className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Copiar Lista ({clientFavs.length})</span>
+                          </button>
+
+                          {firstLog.userPhone && (
+                            <a
+                              href={`https://wa.me/${firstLog.userPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                                `Hola ${firstLog.userName}, te saluda Martín Castillo de Lente Abierto MX. Ya tengo registrada tu selección de ${clientFavs.length} fotografías favoritas de tu sesión "${firstLog.galleryTitle}" para la preparación de tu álbum. ¿Te gustaría coordinar la entrega o retoque?`
+                              )}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-mono flex items-center gap-1.5 transition-colors"
+                            >
+                              <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Contactar WhatsApp</span>
+                            </a>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Photo Grid Preview */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
+                        {clientFavs.map((fav) => (
+                          <div
+                            key={fav.id}
+                            className="group relative aspect-square rounded-xl overflow-hidden bg-black/60 border border-white/5 hover:border-rose-500/50 shadow-md transition-all"
+                          >
+                            <img
+                              src={fav.photoThumbnailUrl || fav.photoUrl}
+                              alt={fav.photoTitle}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-2 flex flex-col justify-between">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  removeFavoriteLog(fav.photoId, fav.userEmail);
+                                  setFavoriteLogs(getStoredFavoriteLogs());
+                                }}
+                                className="self-end p-1 rounded-full bg-red-950/80 hover:bg-red-900 text-red-300 transition-colors"
+                                title="Quitar de la lista"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                              <p className="text-[10px] text-white font-editorial truncate">
+                                {fav.photoTitle}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 9: SITE CMS / CUSTOMIZATION */}
       {activeTab === 'siteCms' && (
         <div className="space-y-8 animate-fadeIn">
           {/* Header & Save Bar */}
@@ -2530,15 +3080,50 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <button
                       type="button"
                       onClick={() => {
+                        const realPhotos: InstagramPost[] = [];
+                        for (const g of galleries) {
+                          for (const p of g.photos.slice(0, 2)) {
+                            realPhotos.push({
+                              id: `ig-sync-${p.id}`,
+                              imageUrl: p.url,
+                              caption: `${p.title}. Toma documental de autor para la colección "${g.title}". Momentos únicos bajo luz natural. #LenteAbiertoMX @lente.abierto.mx`,
+                              likes: Math.floor(Math.random() * 400) + 380,
+                              comments: Math.floor(Math.random() * 30) + 20,
+                              postUrl: 'https://instagram.com/lente.abierto.mx',
+                              date: 'Publicación reciente',
+                            });
+                            if (realPhotos.length >= 6) break;
+                          }
+                          if (realPhotos.length >= 6) break;
+                        }
+                        if (realPhotos.length > 0) {
+                          setInstagramPostsList(realPhotos);
+                          saveInstagramPosts(realPhotos);
+                          setIgFeedback('¡Se cargaron 6 fotografías reales de tus colecciones para el feed de Instagram!');
+                          setTimeout(() => setIgFeedback(null), 3500);
+                        } else {
+                          setIgFeedback('No hay fotos en tus galerías aún. Agrega fotos primero.');
+                          setTimeout(() => setIgFeedback(null), 3500);
+                        }
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs flex items-center gap-1.5 transition-colors font-semibold"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Cargar Mis Fotos de Galerías</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
                         const reset = resetInstagramPosts();
                         setInstagramPostsList(reset);
-                        setIgFeedback('Publicaciones de Instagram restablecidas a las oficiales de Lente Abierto MX.');
+                        setIgFeedback('Publicaciones de Instagram restablecidas.');
                         setTimeout(() => setIgFeedback(null), 3500);
                       }}
                       className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white border border-white/10 text-xs flex items-center gap-1.5 transition-colors"
                     >
                       <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Restablecer Oficiales</span>
+                      <span>Restablecer</span>
                     </button>
 
                     <a

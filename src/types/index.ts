@@ -167,3 +167,32 @@ export interface SiteContentConfig {
     pricingPackages: PricingPackage[];
   };
 }
+
+export interface DownloadLog {
+  id: string;
+  galleryId: string;
+  galleryTitle: string;
+  photoId?: string;
+  photoTitle?: string;
+  type: 'single' | 'zip';
+  userName: string;
+  userEmail: string;
+  userPhone?: string;
+  timestamp: string;
+}
+
+export interface FavoriteLog {
+  id: string;
+  galleryId: string;
+  galleryTitle: string;
+  photoId: string;
+  photoTitle: string;
+  photoUrl: string;
+  photoThumbnailUrl?: string;
+  userName: string;
+  userEmail: string;
+  userPhone?: string;
+  timestamp: string;
+}
+
+

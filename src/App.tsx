@@ -233,7 +233,7 @@ export default function App() {
       </div>
 
       {/* Instagram Feed Showcase (@lente.abierto.mx) */}
-      <InstagramFeed />
+      <InstagramFeed galleries={galleries} portraitUrl={siteContent.biography.portraitUrl} />
 
       {/* Editorial Luxury Footer */}
       <Footer

@@ -8,23 +8,63 @@ import {
   X,
   BadgeCheck,
   Calendar,
-  Share2,
+  Sparkles,
 } from 'lucide-react';
-import { getStoredInstagramPosts, DEFAULT_INSTAGRAM_POSTS } from '../services/storage';
-import { InstagramPost } from '../types';
+import { getStoredInstagramPosts } from '../services/storage';
+import { InstagramPost, Gallery } from '../types';
 
-export const InstagramFeed: React.FC = () => {
-  const [posts, setPosts] = useState<InstagramPost[]>(() => getStoredInstagramPosts());
+interface InstagramFeedProps {
+  galleries?: Gallery[];
+  portraitUrl?: string;
+}
+
+export const InstagramFeed: React.FC<InstagramFeedProps> = ({
+  galleries = [],
+  portraitUrl,
+}) => {
+  const [posts, setPosts] = useState<InstagramPost[]>(() => {
+    const stored = getStoredInstagramPosts();
+    return stored;
+  });
   const [activeModalPost, setActiveModalPost] = useState<InstagramPost | null>(null);
 
   useEffect(() => {
-    setPosts(getStoredInstagramPosts());
-  }, []);
+    const stored = getStoredInstagramPosts();
+    // If photographer has custom galleries with real photos and no custom posts saved:
+    if (stored.length > 0) {
+      setPosts(stored);
+    } else if (galleries.length > 0) {
+      // Derive authentic posts from the photographer's own gallery collections
+      const derived: InstagramPost[] = [];
+      for (const g of galleries) {
+        for (const p of g.photos.slice(0, 2)) {
+          derived.push({
+            id: `ig-auto-${p.id}`,
+            imageUrl: p.url,
+            caption: `${p.title}. Captura de autor para la colección "${g.title}". Documental de bodas & retrato en luz natural. #LenteAbiertoMX @lente.abierto.mx`,
+            likes: Math.floor(Math.random() * 400) + 350,
+            comments: Math.floor(Math.random() * 30) + 18,
+            postUrl: 'https://instagram.com/lente.abierto.mx',
+            date: 'Publicación reciente',
+          });
+          if (derived.length >= 6) break;
+        }
+        if (derived.length >= 6) break;
+      }
+      if (derived.length > 0) {
+        setPosts(derived);
+      }
+    }
+  }, [galleries]);
 
   const handleShuffle = () => {
     const shuffled = [...posts].sort(() => Math.random() - 0.5);
     setPosts(shuffled);
   };
+
+  const avatarImage =
+    portraitUrl ||
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80';
 
   return (
     <section className="w-full bg-[#0a0b0d] border-t border-white/5 py-14 sm:py-20 select-none">
@@ -35,7 +75,7 @@ export const InstagramFeed: React.FC = () => {
             <div className="relative group">
               <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 p-[2.5px] shadow-xl shadow-rose-950/30">
                 <img
-                  src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80"
+                  src={avatarImage}
                   alt="@lente.abierto.mx"
                   className="w-full h-full rounded-full object-cover border-2 border-[#0a0b0d]"
                 />
@@ -69,7 +109,7 @@ export const InstagramFeed: React.FC = () => {
                   <strong className="text-zinc-200 font-sans">12.8K</strong> seguidores
                 </span>
                 <span>·</span>
-                <span className="text-amber-400/90 font-medium">CDMX · Morelos · Oaxaca</span>
+                <span className="text-amber-400/90 font-medium">Cuernavaca · CDMX · Oaxaca</span>
               </div>
             </div>
           </div>
@@ -186,7 +226,7 @@ export const InstagramFeed: React.FC = () => {
                 <div className="flex items-center gap-3 pb-4 border-b border-white/5">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-amber-500 to-rose-500 p-0.5">
                     <img
-                      src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80"
+                      src={avatarImage}
                       alt=""
                       className="w-full h-full rounded-full object-cover border border-[#121316]"
                     />

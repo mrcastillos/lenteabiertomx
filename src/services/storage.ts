@@ -1,8 +1,11 @@
-import { Gallery, BookingInquiry, SiteContentConfig, InstagramPost } from '../types';
+import { Gallery, BookingInquiry, SiteContentConfig, InstagramPost, DownloadLog, FavoriteLog } from '../types';
 
 const STORAGE_KEY_GALLERIES = 'lente_abierto_galleries_v2';
 const STORAGE_KEY_INQUIRIES = 'lente_abierto_inquiries_v2';
 const STORAGE_KEY_FAVORITES = 'lente_abierto_favorites_v2';
+const STORAGE_KEY_DOWNLOAD_LOGS = 'lente_abierto_download_logs_v1';
+const STORAGE_KEY_FAVORITE_LOGS = 'lente_abierto_favorite_logs_v1';
+const STORAGE_KEY_CLIENT_SESSION = 'lente_abierto_client_session_v1';
 
 export const INITIAL_GALLERIES: Gallery[] = [
   {
@@ -579,7 +582,7 @@ export const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
   },
 ];
 
-const STORAGE_KEY_INSTAGRAM_POSTS = 'lente_abierto_ig_posts_v2';
+const STORAGE_KEY_INSTAGRAM_POSTS = 'lente_abierto_ig_posts_v3';
 
 export function getStoredInstagramPosts(): InstagramPost[] {
   try {
@@ -766,4 +769,122 @@ export function resetSiteContent(): SiteContentConfig {
   }
   return DEFAULT_SITE_CONTENT;
 }
+
+export function getStoredDownloadLogs(): DownloadLog[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_DOWNLOAD_LOGS);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.error('Error reading download logs', e);
+    return [];
+  }
+}
+
+export function recordDownloadLog(
+  logData: Omit<DownloadLog, 'id' | 'timestamp'>
+): DownloadLog {
+  const current = getStoredDownloadLogs();
+  const newLog: DownloadLog = {
+    ...logData,
+    id: `dl-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    timestamp: new Date().toISOString(),
+  };
+
+  const updated = [newLog, ...current];
+  try {
+    localStorage.setItem(STORAGE_KEY_DOWNLOAD_LOGS, JSON.stringify(updated.slice(0, 500)));
+  } catch (e) {
+    console.error('Error saving download log', e);
+  }
+  return newLog;
+}
+
+export function clearDownloadLogs(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY_DOWNLOAD_LOGS);
+  } catch (e) {
+    console.error('Error clearing download logs', e);
+  }
+}
+
+export function getClientSessionInfo(): { name: string; email: string; phone?: string } | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY_CLIENT_SESSION) || localStorage.getItem(STORAGE_KEY_CLIENT_SESSION);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function setClientSessionInfo(info: { name: string; email: string; phone?: string }): void {
+  try {
+    const json = JSON.stringify(info);
+    sessionStorage.setItem(STORAGE_KEY_CLIENT_SESSION, json);
+    localStorage.setItem(STORAGE_KEY_CLIENT_SESSION, json);
+  } catch (e) {
+    console.error('Error saving client session info', e);
+  }
+}
+
+export function getStoredFavoriteLogs(): FavoriteLog[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_FAVORITE_LOGS);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.error('Error reading favorite logs', e);
+    return [];
+  }
+}
+
+export function recordFavoriteLog(
+  logData: Omit<FavoriteLog, 'id' | 'timestamp'>
+): FavoriteLog {
+  const current = getStoredFavoriteLogs();
+  // Avoid duplicate favorite from same email and photoId
+  const exists = current.find(
+    (f) => f.photoId === logData.photoId && f.userEmail.toLowerCase() === logData.userEmail.toLowerCase()
+  );
+  if (exists) return exists;
+
+  const newLog: FavoriteLog = {
+    ...logData,
+    id: `fav-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    timestamp: new Date().toISOString(),
+  };
+
+  const updated = [newLog, ...current];
+  try {
+    localStorage.setItem(STORAGE_KEY_FAVORITE_LOGS, JSON.stringify(updated.slice(0, 1000)));
+  } catch (e) {
+    console.error('Error saving favorite log', e);
+  }
+  return newLog;
+}
+
+export function removeFavoriteLog(photoId: string, userEmail?: string): void {
+  try {
+    const current = getStoredFavoriteLogs();
+    const updated = userEmail
+      ? current.filter((f) => !(f.photoId === photoId && f.userEmail.toLowerCase() === userEmail.toLowerCase()))
+      : current.filter((f) => f.photoId !== photoId);
+    localStorage.setItem(STORAGE_KEY_FAVORITE_LOGS, JSON.stringify(updated));
+  } catch (e) {
+    console.error('Error removing favorite log', e);
+  }
+}
+
+export function clearFavoriteLogs(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY_FAVORITE_LOGS);
+  } catch (e) {
+    console.error('Error clearing favorite logs', e);
+  }
+}
+
+
 

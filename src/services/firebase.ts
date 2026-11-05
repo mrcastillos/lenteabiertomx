@@ -9,9 +9,16 @@ import {
 } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-// Initialize Firebase App singleton
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-export const auth = getAuth(app);
+// Initialize Firebase App singleton safely
+let authInstance: any = null;
+try {
+  const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  authInstance = getAuth(app);
+} catch (e) {
+  console.warn('Firebase initialized with fallback:', e);
+}
+
+export const auth = authInstance;
 
 // Configure Google Provider with Drive Scope
 export const googleProvider = new GoogleAuthProvider();
@@ -28,6 +35,10 @@ export const initAuth = (
   onAuthSuccess?: (user: User, token: string) => void,
   onAuthFailure?: () => void
 ) => {
+  if (!auth) {
+    if (onAuthFailure) onAuthFailure();
+    return () => {};
+  }
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
       if (cachedAccessToken) {

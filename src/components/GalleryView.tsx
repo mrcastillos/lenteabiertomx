@@ -17,8 +17,10 @@ import { Gallery, Photo } from '../types';
 import { WatermarkCanvas } from './WatermarkCanvas';
 import { PhotoLightbox } from './PhotoLightbox';
 import { PinModal } from './PinModal';
+import { FavoriteAuthModal } from './FavoriteAuthModal';
 import { downloadGalleryAsZip, downloadSingleCleanPhoto, DownloadProgress } from '../services/zipDownloader';
 import { getAccessToken } from '../services/firebase';
+import { getClientSessionInfo, recordDownloadLog, recordFavoriteLog, removeFavoriteLog } from '../services/storage';
 
 interface GalleryViewProps {
   gallery: Gallery;
@@ -36,8 +38,13 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [pinActionType, setPinActionType] = useState<'single' | 'full'>('full');
+  const [downloadTargetPhoto, setDownloadTargetPhoto] = useState<Photo | null>(null);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const [isPinVerified, setIsPinVerified] = useState(false);
+
+  // Client Favorites tracking modal
+  const [isFavModalOpen, setIsFavModalOpen] = useState(false);
+  const [pendingFavPhoto, setPendingFavPhoto] = useState<Photo | null>(null);
 
   // ZIP download progress
   const [isZipDownloading, setIsZipDownloading] = useState(false);
@@ -65,27 +72,54 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   };
 
   const handleDownloadFullClick = () => {
-    if (gallery.downloadPin && !isPinVerified) {
+    const client = getClientSessionInfo();
+    const needsPin = gallery.downloadPin && !isPinVerified;
+
+    if (!client || needsPin) {
       setPinActionType('full');
+      setDownloadTargetPhoto(null);
       setPendingAction(() => handleStartZipDownload);
       setIsPinModalOpen(true);
     } else {
+      recordDownloadLog({
+        galleryId: gallery.id,
+        galleryTitle: gallery.title,
+        photoTitle: 'Colección Completa ZIP',
+        type: 'zip',
+        userName: client.name,
+        userEmail: client.email,
+        userPhone: client.phone,
+      });
       handleStartZipDownload();
     }
   };
 
   const handleSinglePhotoDownloadClick = (photo: Photo, e: React.MouseEvent) => {
     e.stopPropagation();
+    const client = getClientSessionInfo();
+    const needsPin = gallery.downloadPin && !isPinVerified;
+
     const action = async () => {
       const token = await getAccessToken();
       await downloadSingleCleanPhoto(photo, gallery.title, token);
     };
 
-    if (gallery.downloadPin && !isPinVerified) {
+    if (!client || needsPin) {
       setPinActionType('single');
+      setDownloadTargetPhoto(photo);
       setPendingAction(() => action);
       setIsPinModalOpen(true);
     } else {
+      recordDownloadLog({
+        galleryId: gallery.id,
+        galleryTitle: gallery.title,
+        photoId: photo.id,
+        photoTitle: photo.title || 'Foto Individual',
+        type: 'single',
+        userName: client.name,
+        userEmail: client.email,
+        userPhone: client.phone,
+      });
       action();
     }
   };
@@ -102,6 +136,59 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
       pendingAction();
       setPendingAction(null);
     }
+  };
+
+  const handleFavoriteClick = (photo: Photo, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const isCurrentlyFav = favorites.includes(photo.id);
+    const client = getClientSessionInfo();
+
+    if (!isCurrentlyFav && !client) {
+      setPendingFavPhoto(photo);
+      setIsFavModalOpen(true);
+      return;
+    }
+
+    onToggleFavorite(photo.id);
+
+    if (!isCurrentlyFav && client) {
+      recordFavoriteLog({
+        galleryId: gallery.id,
+        galleryTitle: gallery.title,
+        photoId: photo.id,
+        photoTitle: photo.title || 'Foto de Colección',
+        photoUrl: photo.url,
+        photoThumbnailUrl: photo.thumbnailUrl || photo.url,
+        userName: client.name,
+        userEmail: client.email,
+        userPhone: client.phone,
+      });
+    } else if (isCurrentlyFav && client) {
+      removeFavoriteLog(photo.id, client.email);
+    }
+  };
+
+  const handleFavAuthSuccess = (client: { name: string; email: string; phone?: string }) => {
+    if (pendingFavPhoto) {
+      onToggleFavorite(pendingFavPhoto.id);
+      recordFavoriteLog({
+        galleryId: gallery.id,
+        galleryTitle: gallery.title,
+        photoId: pendingFavPhoto.id,
+        photoTitle: pendingFavPhoto.title || 'Foto de Colección',
+        photoUrl: pendingFavPhoto.url,
+        photoThumbnailUrl: pendingFavPhoto.thumbnailUrl || pendingFavPhoto.url,
+        userName: client.name,
+        userEmail: client.email,
+        userPhone: client.phone,
+      });
+      setPendingFavPhoto(null);
+    }
+  };
+
+  const handleLightboxRequestFav = (photo: Photo) => {
+    setPendingFavPhoto(photo);
+    setIsFavModalOpen(true);
   };
 
   const handleShare = () => {
@@ -304,10 +391,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
 
                         <div className="flex items-center gap-1.5">
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onToggleFavorite(photo.id);
-                            }}
+                            onClick={(e) => handleFavoriteClick(photo, e)}
                             className={`p-2 rounded-full backdrop-blur-md transition-colors ${
                               isFav
                                 ? 'bg-rose-500 text-white'
@@ -377,21 +461,37 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
           isFavorite={favorites.includes(gallery.photos[selectedPhotoIndex]?.id || '')}
           onToggleFavorite={onToggleFavorite}
           onRequestPin={handleRequestPinFromLightbox}
+          onRequestFavorite={handleLightboxRequestFav}
           isPinVerified={isPinVerified}
         />
       )}
 
-      {/* PIN Verification Modal */}
+      {/* PIN Verification & Download Registration Modal */}
       <PinModal
         isOpen={isPinModalOpen}
         onClose={() => {
           setIsPinModalOpen(false);
           setPendingAction(null);
+          setDownloadTargetPhoto(null);
         }}
         expectedPin={gallery.downloadPin || ''}
+        galleryId={gallery.id}
         galleryTitle={gallery.title}
+        photoId={downloadTargetPhoto?.id}
+        photoTitle={downloadTargetPhoto?.title}
         actionType={pinActionType}
         onSuccess={handlePinSuccess}
+      />
+
+      {/* Client Favorites Tracking Modal */}
+      <FavoriteAuthModal
+        isOpen={isFavModalOpen}
+        onClose={() => {
+          setIsFavModalOpen(false);
+          setPendingFavPhoto(null);
+        }}
+        onSuccess={handleFavAuthSuccess}
+        galleryTitle={gallery.title}
       />
     </div>
   );
