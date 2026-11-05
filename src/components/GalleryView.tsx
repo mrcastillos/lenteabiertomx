@@ -20,7 +20,14 @@ import { PinModal } from './PinModal';
 import { FavoriteAuthModal } from './FavoriteAuthModal';
 import { downloadGalleryAsZip, downloadSingleCleanPhoto, DownloadProgress } from '../services/zipDownloader';
 import { getAccessToken } from '../services/firebase';
-import { getClientSessionInfo, recordDownloadLog, recordFavoriteLog, removeFavoriteLog } from '../services/storage';
+import {
+  getClientSessionInfo,
+  recordDownloadLog,
+  recordFavoriteLog,
+  removeFavoriteLog,
+  isGalleryPinVerifiedInSession,
+  setGalleryPinVerifiedInSession,
+} from '../services/storage';
 
 interface GalleryViewProps {
   gallery: Gallery;
@@ -40,7 +47,9 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   const [pinActionType, setPinActionType] = useState<'single' | 'full'>('full');
   const [downloadTargetPhoto, setDownloadTargetPhoto] = useState<Photo | null>(null);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
-  const [isPinVerified, setIsPinVerified] = useState(false);
+  const [isPinVerified, setIsPinVerified] = useState<boolean>(() =>
+    isGalleryPinVerifiedInSession(gallery.id)
+  );
 
   // Client Favorites tracking modal
   const [isFavModalOpen, setIsFavModalOpen] = useState(false);
@@ -131,6 +140,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   };
 
   const handlePinSuccess = () => {
+    setGalleryPinVerifiedInSession(gallery.id);
     setIsPinVerified(true);
     if (pendingAction) {
       pendingAction();

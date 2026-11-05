@@ -18,7 +18,13 @@ import { Photo, Gallery } from '../types';
 import { WatermarkCanvas } from './WatermarkCanvas';
 import { downloadSingleCleanPhoto } from '../services/zipDownloader';
 import { getAccessToken } from '../services/firebase';
-import { getClientSessionInfo, recordDownloadLog, recordFavoriteLog, removeFavoriteLog } from '../services/storage';
+import {
+  getClientSessionInfo,
+  recordDownloadLog,
+  recordFavoriteLog,
+  removeFavoriteLog,
+  isGalleryPinVerifiedInSession,
+} from '../services/storage';
 
 interface PhotoLightboxProps {
   gallery: Gallery;
@@ -154,7 +160,8 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
 
   const handleDownloadClick = () => {
     const client = getClientSessionInfo();
-    if (!client || (gallery.downloadPin && !isPinVerified)) {
+    const pinVerified = isPinVerified || isGalleryPinVerifiedInSession(gallery.id);
+    if (!client || (gallery.downloadPin && !pinVerified)) {
       onRequestPin('single', executeDownload);
     } else {
       recordDownloadLog({

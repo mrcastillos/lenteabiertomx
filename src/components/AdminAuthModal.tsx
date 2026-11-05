@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { Lock, X, ShieldAlert, Eye, EyeOff, KeyRound, Sparkles, UserCheck } from 'lucide-react';
-import { verifyAdminCredentials, setAdminLoggedIn, DEFAULT_PHOTOGRAPHER_PROFILE, setCurrentUser } from '../services/userService';
+import {
+  authenticateUserForBackend,
+  setAdminLoggedIn,
+  setCurrentUser,
+} from '../services/userService';
 
 interface AdminAuthModalProps {
   isOpen: boolean;
@@ -27,17 +31,17 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
     setIsLoading(true);
 
     setTimeout(() => {
-      const isValid = verifyAdminCredentials(username, password);
+      const authResult = authenticateUserForBackend(username, password);
 
-      if (isValid) {
+      if (authResult.success && authResult.user) {
         setAdminLoggedIn(true);
-        setCurrentUser(DEFAULT_PHOTOGRAPHER_PROFILE);
+        setCurrentUser(authResult.user);
         setIsLoading(false);
         onSuccess();
         onClose();
       } else {
         setIsLoading(false);
-        setError('Acceso denegado. Credenciales de administrador inválidas. Este panel es exclusivo para el fotógrafo de Lente Abierto MX.');
+        setError('Acceso denegado. Credenciales inválidas. Verifica tu usuario y contraseña.');
       }
     }, 250);
   };

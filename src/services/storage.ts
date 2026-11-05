@@ -811,7 +811,7 @@ export function clearDownloadLogs(): void {
 
 export function getClientSessionInfo(): { name: string; email: string; phone?: string } | null {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY_CLIENT_SESSION) || localStorage.getItem(STORAGE_KEY_CLIENT_SESSION);
+    const raw = sessionStorage.getItem(STORAGE_KEY_CLIENT_SESSION);
     if (!raw) return null;
     return JSON.parse(raw);
   } catch {
@@ -823,9 +823,26 @@ export function setClientSessionInfo(info: { name: string; email: string; phone?
   try {
     const json = JSON.stringify(info);
     sessionStorage.setItem(STORAGE_KEY_CLIENT_SESSION, json);
-    localStorage.setItem(STORAGE_KEY_CLIENT_SESSION, json);
+    // Remove from localStorage so closing page/browser requires re-entering as requested
+    localStorage.removeItem(STORAGE_KEY_CLIENT_SESSION);
   } catch (e) {
     console.error('Error saving client session info', e);
+  }
+}
+
+export function isGalleryPinVerifiedInSession(galleryId: string): boolean {
+  try {
+    return sessionStorage.getItem(`lente_abierto_pin_verified_${galleryId}`) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function setGalleryPinVerifiedInSession(galleryId: string): void {
+  try {
+    sessionStorage.setItem(`lente_abierto_pin_verified_${galleryId}`, 'true');
+  } catch (e) {
+    console.error('Error setting gallery pin verified in session', e);
   }
 }
 

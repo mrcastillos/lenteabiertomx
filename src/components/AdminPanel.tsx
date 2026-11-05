@@ -166,6 +166,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     assignedGalleries: [],
   });
 
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+  const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
+  const [editUserForm, setEditUserData] = useState<{
+    name: string;
+    email: string;
+    role: UserProfile['role'];
+    password: string;
+    pin: string;
+    phone: string;
+    location: string;
+    bio: string;
+    assignedGalleries: string[];
+  }>({
+    name: '',
+    email: '',
+    role: 'colaborador',
+    password: '',
+    pin: '',
+    phone: '',
+    location: '',
+    bio: '',
+    assignedGalleries: [],
+  });
+
   // Instagram CMS State
   const [instagramPostsList, setInstagramPostsList] = useState<InstagramPost[]>(getStoredInstagramPosts());
   const [editingIgPost, setEditingIgPost] = useState<InstagramPost | null>(null);
@@ -3650,29 +3674,55 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           </select>
                         </div>
 
-                        {!isMainPhotographer ? (
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => {
-                              if (confirm(`¿Eliminar al usuario ${u.name}?`)) {
-                                deleteUser(u.id);
-                                setUserList(getStoredUsers());
-                                setUserFeedback({
-                                  isError: false,
-                                  message: `Usuario ${u.name} eliminado.`,
-                                });
-                                setTimeout(() => setUserFeedback(null), 3000);
-                              }
+                              setEditingUser(u);
+                              setEditUserData({
+                                name: u.name,
+                                email: u.email,
+                                role: u.role,
+                                password: u.password || '',
+                                pin: u.pin || '',
+                                phone: u.phone || '',
+                                location: u.location || '',
+                                bio: u.bio || '',
+                                assignedGalleries: u.assignedGalleries || [],
+                              });
+                              setIsEditUserModalOpen(true);
                             }}
-                            className="p-1.5 rounded-lg bg-red-950/30 hover:bg-red-900/40 text-red-400 hover:text-red-300 border border-red-500/20 text-xs flex items-center gap-1 transition-colors"
-                            title="Eliminar usuario"
+                            className="p-1.5 px-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-300 hover:text-amber-200 border border-zinc-700 text-xs flex items-center gap-1.5 transition-colors"
+                            title="Editar información y credenciales de acceso"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Eliminar</span>
+                            <Edit2 className="w-3.5 h-3.5" />
+                            <span>Editar</span>
                           </button>
-                        ) : (
-                          <span className="text-[10px] font-mono text-amber-400/80 uppercase">Titular Principal</span>
-                        )}
+
+                          {!isMainPhotographer ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm(`¿Eliminar al usuario ${u.name}?`)) {
+                                  deleteUser(u.id);
+                                  setUserList(getStoredUsers());
+                                  setUserFeedback({
+                                    isError: false,
+                                    message: `Usuario ${u.name} eliminado.`,
+                                  });
+                                  setTimeout(() => setUserFeedback(null), 3000);
+                                }
+                              }}
+                              className="p-1.5 px-2.5 rounded-lg bg-red-950/30 hover:bg-red-900/40 text-red-400 hover:text-red-300 border border-red-500/20 text-xs flex items-center gap-1 transition-colors"
+                              title="Eliminar usuario"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Eliminar</span>
+                            </button>
+                          ) : (
+                            <span className="text-[10px] font-mono text-amber-400/80 uppercase">Titular</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -3901,6 +3951,240 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       className="px-6 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-md shadow-amber-500/20"
                     >
                       Guardar Usuario
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL: EDIT USER / COLLABORATOR */}
+          {isEditUserModalOpen && editingUser && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+              <div className="relative w-full max-w-lg bg-[#141518] border border-amber-500/30 rounded-3xl shadow-2xl p-6 sm:p-8 text-zinc-200 space-y-5 max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                      <Edit2 className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-editorial text-2xl text-white font-medium">
+                        Editar Usuario: {editingUser.name}
+                      </h4>
+                      <p className="text-[11px] text-zinc-400">
+                        Modifica datos personales, rol y credenciales de acceso.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setIsEditUserModalOpen(false);
+                      setEditingUser(null);
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-400 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    try {
+                      if (editingUser.id === DEFAULT_PHOTOGRAPHER_PROFILE.id) {
+                        saveAdminCredentials({
+                          username: editUserForm.email.split('@')[0] || 'admi',
+                          email: editUserForm.email.trim(),
+                          password: editUserForm.password || 'Mar.830903',
+                          name: editUserForm.name.trim(),
+                        });
+                      }
+
+                      updateUserProfile(editingUser.id, {
+                        name: editUserForm.name.trim(),
+                        email: editUserForm.email.trim(),
+                        role: editUserForm.role,
+                        password: editUserForm.password.trim(),
+                        pin: editUserForm.pin.trim(),
+                        phone: editUserForm.phone.trim(),
+                        location: editUserForm.location.trim(),
+                        bio: editUserForm.bio.trim(),
+                        assignedGalleries: editUserForm.assignedGalleries,
+                      });
+
+                      setUserList(getStoredUsers());
+                      setIsEditUserModalOpen(false);
+                      setEditingUser(null);
+                      setUserFeedback({
+                        isError: false,
+                        message: `Usuario ${editUserForm.name} actualizado exitosamente.`,
+                      });
+                      setTimeout(() => setUserFeedback(null), 4000);
+                    } catch (err: any) {
+                      alert(err.message || 'Error al actualizar usuario.');
+                    }
+                  }}
+                  className="space-y-4 text-xs"
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-zinc-400 uppercase font-mono text-[10px] mb-1">
+                        Nombre Completo *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editUserForm.name}
+                        onChange={(e) => setEditUserData({ ...editUserForm, name: e.target.value })}
+                        placeholder="Ej. Sofía Hernández"
+                        className="w-full bg-[#1c1e24] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-zinc-400 uppercase font-mono text-[10px] mb-1">
+                        Usuario / Correo Electrónico *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editUserForm.email}
+                        onChange={(e) => setEditUserData({ ...editUserForm, email: e.target.value })}
+                        placeholder="demo o demo@lenteabierto.mx"
+                        className="w-full bg-[#1c1e24] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-zinc-400 uppercase font-mono text-[10px] mb-1">
+                        Rol en la Plataforma *
+                      </label>
+                      <select
+                        value={editUserForm.role}
+                        onChange={(e) =>
+                          setEditUserData({ ...editUserForm, role: e.target.value as UserProfile['role'] })
+                        }
+                        className="w-full bg-[#1c1e24] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="colaborador">Colaborador (Producción / Subida)</option>
+                        <option value="fotografo">Fotógrafo Asociado</option>
+                        <option value="asistente">Asistente de Iluminación</option>
+                        <option value="editor">Editor de Postproducción</option>
+                        <option value="cliente">Cliente Exclusivo</option>
+                        <option value="admin">Administrador Secundario</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-zinc-400 uppercase font-mono text-[10px] mb-1">
+                        Teléfono / WhatsApp
+                      </label>
+                      <input
+                        type="text"
+                        value={editUserForm.phone}
+                        onChange={(e) => setEditUserData({ ...editUserForm, phone: e.target.value })}
+                        placeholder="+52 55 1234 5678"
+                        className="w-full bg-[#1c1e24] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-zinc-400 uppercase font-mono text-[10px] mb-1">
+                        Contraseña o Clave de Acceso
+                      </label>
+                      <input
+                        type="text"
+                        value={editUserForm.password}
+                        onChange={(e) => setEditUserData({ ...editUserForm, password: e.target.value })}
+                        placeholder="•••••••• o demo"
+                        className="w-full bg-[#1c1e24] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-zinc-400 uppercase font-mono text-[10px] mb-1">
+                        Ubicación Base
+                      </label>
+                      <input
+                        type="text"
+                        value={editUserForm.location}
+                        onChange={(e) => setEditUserData({ ...editUserForm, location: e.target.value })}
+                        placeholder="CDMX / Cuernavaca / Oaxaca"
+                        className="w-full bg-[#1c1e24] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-mono text-[10px] mb-1">
+                      Biografía Corta o Notas Internas
+                    </label>
+                    <input
+                      type="text"
+                      value={editUserForm.bio}
+                      onChange={(e) => setEditUserData({ ...editUserForm, bio: e.target.value })}
+                      placeholder="Notas del usuario..."
+                      className="w-full bg-[#1c1e24] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* Assigned Galleries checkboxes */}
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-mono text-[10px] mb-1.5">
+                      Asignar Colecciones / Galerías Permitidas:
+                    </label>
+                    <div className="max-h-36 overflow-y-auto space-y-1.5 p-2 bg-[#121316] rounded-xl border border-zinc-800">
+                      {galleries.map((gal) => (
+                        <label
+                          key={gal.id}
+                          className="flex items-center gap-2 text-xs text-zinc-300 hover:text-white cursor-pointer select-none"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={editUserForm.assignedGalleries.includes(gal.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditUserData({
+                                  ...editUserForm,
+                                  assignedGalleries: [...editUserForm.assignedGalleries, gal.id],
+                                });
+                              } else {
+                                setEditUserData({
+                                  ...editUserForm,
+                                  assignedGalleries: editUserForm.assignedGalleries.filter((id) => id !== gal.id),
+                                });
+                              }
+                            }}
+                            className="rounded border-zinc-700 text-amber-500 focus:ring-amber-500"
+                          />
+                          <span className="truncate">{gal.title}</span>
+                          <span className="text-[10px] font-mono text-zinc-500">({gal.category})</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditUserModalOpen(false);
+                        setEditingUser(null);
+                      }}
+                      className="px-4 py-2 rounded-xl text-zinc-400 hover:text-white uppercase font-mono text-[11px]"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-md shadow-amber-500/20"
+                    >
+                      Guardar Cambios
                     </button>
                   </div>
                 </form>

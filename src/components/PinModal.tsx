@@ -16,6 +16,7 @@ import {
   recordDownloadLog,
   getClientSessionInfo,
   setClientSessionInfo,
+  setGalleryPinVerifiedInSession,
 } from '../services/storage';
 
 interface PinModalProps {
@@ -45,6 +46,8 @@ export const PinModal: React.FC<PinModalProps> = ({
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [pin, setPin] = useState('');
+  const [hasExistingSession, setHasExistingSession] = useState(false);
+  const [isEditingSession, setIsEditingSession] = useState(false);
 
   const [errorField, setErrorField] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
@@ -52,10 +55,15 @@ export const PinModal: React.FC<PinModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       const savedInfo = getClientSessionInfo();
-      if (savedInfo) {
+      if (savedInfo && savedInfo.name && savedInfo.email) {
         setName(savedInfo.name || '');
         setEmail(savedInfo.email || '');
         setPhone(savedInfo.phone || '');
+        setHasExistingSession(true);
+        setIsEditingSession(false);
+      } else {
+        setHasExistingSession(false);
+        setIsEditingSession(true);
       }
       setErrorField(null);
       setErrorMessage('');
@@ -121,6 +129,10 @@ export const PinModal: React.FC<PinModalProps> = ({
       phone: phone.trim() || undefined,
     });
 
+    if (galleryId) {
+      setGalleryPinVerifiedInSession(galleryId);
+    }
+
     // 6. Proceed to download
     onSuccess();
     onClose();
@@ -162,84 +174,112 @@ export const PinModal: React.FC<PinModalProps> = ({
           </div>
 
           <p className="text-xs text-zinc-400 leading-relaxed mb-6 font-light">
-            Para registrar tu descarga de <span className="text-zinc-200 font-medium">"{galleryTitle}"</span> y habilitar la entrega original sin marcas de agua, por favor confirma tus datos de contacto:
+            Para registrar tu descarga de <span className="text-zinc-200 font-medium">"{galleryTitle}"</span> y habilitar la entrega original sin marcas de agua, confirma la información:
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Nombre */}
-            <div>
-              <label className="block text-xs uppercase tracking-wider text-zinc-300 font-medium mb-1.5 flex items-center justify-between">
-                <span>Tu Nombre Completo *</span>
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
-                  <User className="w-4 h-4" />
+            {hasExistingSession && !isEditingSession ? (
+              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-amber-500/20 text-amber-300 font-bold flex items-center justify-center border border-amber-500/40">
+                    {(name.charAt(0) || 'C').toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-semibold text-white text-xs">{name}</span>
+                      <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.2 rounded font-mono">
+                        Sesión Activa
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-zinc-400 font-mono block">{email}</span>
+                  </div>
                 </div>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    if (errorField === 'name') setErrorField(null);
-                  }}
-                  placeholder="Ej. Sofía Morales"
-                  className={`w-full bg-[#181a1f] border text-sm text-white py-2.5 pl-10 pr-4 rounded-xl focus:outline-none transition-all ${
-                    errorField === 'name'
-                      ? 'border-red-500/80 focus:ring-2 focus:ring-red-500/30 bg-red-950/20'
-                      : 'border-zinc-700 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20'
-                  }`}
-                />
+                <button
+                  type="button"
+                  onClick={() => setIsEditingSession(true)}
+                  className="text-[10px] text-amber-400 hover:text-amber-300 underline font-mono tracking-wider uppercase"
+                >
+                  Cambiar
+                </button>
               </div>
-            </div>
+            ) : (
+              <>
+                {/* Nombre */}
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-zinc-300 font-medium mb-1.5 flex items-center justify-between">
+                    <span>Tu Nombre Completo *</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
+                      <User className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      value={name}
+                      onChange={(e) => {
+                        setName(e.target.value);
+                        if (errorField === 'name') setErrorField(null);
+                      }}
+                      placeholder="Ej. Sofía Morales"
+                      className={`w-full bg-[#181a1f] border text-sm text-white py-2.5 pl-10 pr-4 rounded-xl focus:outline-none transition-all ${
+                        errorField === 'name'
+                          ? 'border-red-500/80 focus:ring-2 focus:ring-red-500/30 bg-red-950/20'
+                          : 'border-zinc-700 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20'
+                      }`}
+                    />
+                  </div>
+                </div>
 
-            {/* Email */}
-            <div>
-              <label className="block text-xs uppercase tracking-wider text-zinc-300 font-medium mb-1.5 flex items-center justify-between">
-                <span>Correo Electrónico Válido *</span>
-                <span className="text-[10px] text-zinc-500 lowercase">Registro de entrega</span>
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
-                  <Mail className="w-4 h-4" />
+                {/* Email */}
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-zinc-300 font-medium mb-1.5 flex items-center justify-between">
+                    <span>Correo Electrónico Válido *</span>
+                    <span className="text-[10px] text-zinc-500 lowercase">Registro de entrega</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (errorField === 'email') setErrorField(null);
+                      }}
+                      placeholder="cliente@ejemplo.com"
+                      className={`w-full bg-[#181a1f] border text-sm text-white py-2.5 pl-10 pr-4 rounded-xl focus:outline-none transition-all ${
+                        errorField === 'email'
+                          ? 'border-red-500/80 focus:ring-2 focus:ring-red-500/30 bg-red-950/20'
+                          : 'border-zinc-700 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20'
+                      }`}
+                    />
+                  </div>
                 </div>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (errorField === 'email') setErrorField(null);
-                  }}
-                  placeholder="cliente@ejemplo.com"
-                  className={`w-full bg-[#181a1f] border text-sm text-white py-2.5 pl-10 pr-4 rounded-xl focus:outline-none transition-all ${
-                    errorField === 'email'
-                      ? 'border-red-500/80 focus:ring-2 focus:ring-red-500/30 bg-red-950/20'
-                      : 'border-zinc-700 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20'
-                  }`}
-                />
-              </div>
-            </div>
 
-            {/* Teléfono */}
-            <div>
-              <label className="block text-xs uppercase tracking-wider text-zinc-400 font-medium mb-1.5 flex items-center justify-between">
-                <span>Teléfono / WhatsApp</span>
-                <span className="text-[10px] text-zinc-500">Opcional</span>
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
-                  <Phone className="w-4 h-4" />
+                {/* Teléfono */}
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-zinc-400 font-medium mb-1.5 flex items-center justify-between">
+                    <span>Teléfono / WhatsApp</span>
+                    <span className="text-[10px] text-zinc-500">Opcional</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
+                      <Phone className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+52 777 000 0000"
+                      className="w-full bg-[#181a1f] border border-zinc-700 text-sm text-white py-2.5 pl-10 pr-4 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all"
+                    />
+                  </div>
                 </div>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+52 777 000 0000"
-                  className="w-full bg-[#181a1f] border border-zinc-700 text-sm text-white py-2.5 pl-10 pr-4 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all"
-                />
-              </div>
-            </div>
+              </>
+            )}
 
             {/* PIN de descarga (si la galería lo requiere) */}
             {hasPinRequired && (

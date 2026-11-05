@@ -121,14 +121,79 @@ export function setAdminLoggedIn(status: boolean): void {
   }
 }
 
-export function verifyAdminCredentials(user: string, pass: string): boolean {
-  const creds = getStoredAdminCredentials();
+export function authenticateUserForBackend(
+  user: string,
+  pass: string
+): { success: boolean; user?: UserProfile; message?: string } {
   const cleanUser = user.trim().toLowerCase();
-  const validUser =
-    cleanUser === creds.username.toLowerCase() ||
-    cleanUser === creds.email.toLowerCase();
-  const validPass = pass === creds.password;
-  return validUser && validPass;
+  const cleanPass = pass.trim();
+
+  // 1. Check Master Admin Credentials (admi / Mar.830903)
+  const masterCreds = getStoredAdminCredentials();
+  const isMasterUser =
+    cleanUser === masterCreds.username.trim().toLowerCase() ||
+    cleanUser === masterCreds.email.trim().toLowerCase();
+  const isMasterPass = cleanPass === masterCreds.password.trim();
+
+  if (isMasterUser && isMasterPass) {
+    const currentPhotographer = getCurrentUser() || DEFAULT_PHOTOGRAPHER_PROFILE;
+    return { success: true, user: currentPhotographer };
+  }
+
+  // 2. Check all registered users in getStoredUsers()
+  const users = getStoredUsers();
+  const matched = users.find((u) => {
+    const emailMatch = u.email && u.email.trim().toLowerCase() === cleanUser;
+    const nameMatch = u.name && u.name.trim().toLowerCase() === cleanUser;
+    const prefixMatch =
+      u.email && u.email.split('@')[0].trim().toLowerCase() === cleanUser;
+    const idMatch = u.id && u.id.trim().toLowerCase() === cleanUser;
+    return emailMatch || nameMatch || prefixMatch || idMatch;
+  });
+
+  if (matched) {
+    const userPass = (matched.password || '').trim();
+    const userPin = (matched.pin || '').trim();
+
+    const passwordMatches =
+      (userPass && userPass === cleanPass) ||
+      (userPin && userPin === cleanPass) ||
+      (userPass && userPass.toLowerCase() === cleanPass.toLowerCase());
+
+    if (passwordMatches) {
+      return { success: true, user: matched };
+    }
+  }
+
+  // 3. Fallback for demo / demo user: auto-provision if requested
+  if (cleanUser === 'demo' && cleanPass === 'demo') {
+    const existingDemo = users.find(
+      (u) =>
+        u.email.toLowerCase() === 'demo@lenteabierto.mx' ||
+        u.name.toLowerCase() === 'demo' ||
+        u.email.toLowerCase() === 'demo'
+    );
+    if (existingDemo) {
+      return { success: true, user: existingDemo };
+    } else {
+      const demoUser = addUser({
+        name: 'Usuario Demo',
+        email: 'demo@lenteabierto.mx',
+        role: 'colaborador',
+        password: 'demo',
+        phone: '+52 777 374 3420',
+        location: 'México',
+        bio: 'Cuenta de colaboración y acceso técnico',
+      });
+      return { success: true, user: demoUser };
+    }
+  }
+
+  return { success: false, message: 'Usuario o contraseña incorrectos.' };
+}
+
+export function verifyAdminCredentials(user: string, pass: string): boolean {
+  return authenticateUserForBackend(user, pass).success;
 }
 
 export const DEFAULT_PHOTOGRAPHER_PROFILE: UserProfile = {

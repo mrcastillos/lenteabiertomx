@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, ArrowRight, ShieldCheck, Heart, Sparkles, MessageCircle } from 'lucide-react';
 import { Gallery } from '../types';
+import { setGalleryPinVerifiedInSession, setClientSessionInfo, getClientSessionInfo } from '../services/storage';
 
 interface ClientPortalPageProps {
   galleries: Gallery[];
@@ -38,6 +39,13 @@ export const ClientPortalPage: React.FC<ClientPortalPageProps> = ({
 
     if (match) {
       setError(false);
+      setGalleryPinVerifiedInSession(match.id);
+      if (match.clientEmail && !getClientSessionInfo()) {
+        setClientSessionInfo({
+          name: match.clientName || 'Cliente',
+          email: match.clientEmail,
+        });
+      }
       onSelectGallery(match);
     } else {
       setError(true);
