@@ -1,0 +1,107 @@
+{
+  "entities": {
+    "Gallery": {
+      "title": "Gallery",
+      "description": "A photo collection or client event gallery",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "clientName": { "type": "string" },
+        "clientEmail": { "type": "string" },
+        "eventDate": { "type": "string" },
+        "location": { "type": "string" },
+        "category": { "type": "string" },
+        "coverPhotoUrl": { "type": "string" },
+        "description": { "type": "string" },
+        "accessPin": { "type": "string" },
+        "downloadPin": { "type": "string" },
+        "isPrivate": { "type": "boolean" },
+        "viewsCount": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "category", "coverPhotoUrl"]
+    },
+    "SiteContent": {
+      "title": "SiteContent",
+      "description": "Global CMS content for Lente Abierto MX",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id"]
+    },
+    "Inquiry": {
+      "title": "Inquiry",
+      "description": "Booking and quote request from clients",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "eventType": { "type": "string" },
+        "date": { "type": "string" },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "message"]
+    },
+    "DownloadLog": {
+      "title": "DownloadLog",
+      "description": "Record of a gallery download",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "galleryId": { "type": "string" },
+        "galleryTitle": { "type": "string" },
+        "clientName": { "type": "string" },
+        "clientEmail": { "type": "string" },
+        "clientPhone": { "type": "string" },
+        "downloadType": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "galleryId", "clientEmail", "downloadType"]
+    },
+    "FavoriteLog": {
+      "title": "FavoriteLog",
+      "description": "Record of a photo added to favorites",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "photoId": { "type": "string" },
+        "galleryId": { "type": "string" },
+        "galleryTitle": { "type": "string" },
+        "clientName": { "type": "string" },
+        "clientEmail": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "photoId", "galleryId", "clientEmail"]
+    }
+  },
+  "firestore": {
+    "/galleries/{galleryId}": {
+      "schema": "Gallery",
+      "description": "Public and private photographic collections"
+    },
+    "/siteConfig/{configId}": {
+      "schema": "SiteContent",
+      "description": "Site configuration, bio, and contact info"
+    },
+    "/inquiries/{inquiryId}": {
+      "schema": "Inquiry",
+      "description": "Client quote inquiries"
+    },
+    "/downloadLogs/{logId}": {
+      "schema": "DownloadLog",
+      "description": "Audit log of client downloads"
+    },
+    "/favoriteLogs/{logId}": {
+      "schema": "FavoriteLog",
+      "description": "Audit log of favorited photos"
+    }
+  }
+}
