@@ -174,13 +174,6 @@ export async function fetchPhotosFromScriptApi(folderId: string = 'root'): Promi
       width: 1920,
       height: 1280,
       aspectRatio: 'landscape',
-      exif: {
-        camera: 'Sony α Series',
-        lens: 'G Master Prime 35mm F1.4',
-        aperture: 'f/1.4',
-        shutterSpeed: '1/1000s',
-        iso: 'ISO 100',
-      },
       driveFileId: item.id,
       dateAdded: new Date().toISOString(),
     };

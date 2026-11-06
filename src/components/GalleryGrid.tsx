@@ -48,7 +48,7 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
             <span>{hero.badge}</span>
           </div>
         )}
-        <h1 className="font-editorial text-4xl sm:text-5xl md:text-6xl text-white font-normal leading-[1.1] tracking-tight">
+        <h1 className="font-editorial text-3xl sm:text-5xl md:text-6xl text-white font-normal leading-[1.15] tracking-tight">
           {hero.title}
         </h1>
         <p className="text-sm sm:text-base text-zinc-400 font-light leading-relaxed">
@@ -69,14 +69,14 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-10 pb-6 border-b border-white/5">
-        {/* Category Pills */}
-        <div className="flex flex-wrap items-center justify-center gap-2">
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 mb-8 sm:mb-10 pb-6 border-b border-white/5">
+        {/* Category Pills - Smooth horizontal scrolling on mobile, centered wrap on desktop */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-none sm:flex-wrap sm:justify-center -mx-4 px-4 sm:mx-0 sm:px-0">
           {dynamicCategories.map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-4 py-1.5 rounded-full text-xs uppercase tracking-wider transition-all ${
+              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs uppercase tracking-wider transition-all flex-shrink-0 ${
                 selectedCategory === cat
                   ? 'bg-amber-500 text-black font-semibold shadow-md shadow-amber-500/20'
                   : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
@@ -88,7 +88,7 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
         </div>
 
         {/* Search */}
-        <div className="relative w-full md:w-72">
+        <div className="relative w-full md:w-72 flex-shrink-0">
           <Search className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"

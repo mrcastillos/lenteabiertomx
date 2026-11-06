@@ -44,20 +44,20 @@ export const Navbar: React.FC<NavbarProps> = ({
       )}
 
       <header className="sticky top-0 z-40 bg-[#0c0d0e]/95 backdrop-blur-xl border-b border-white/5 transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 h-20 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-3 sm:px-8 h-18 sm:h-20 flex items-center justify-between gap-2">
         {/* Brand Logo */}
         <button
           onClick={() => onSelectTab('galleries')}
-          className="flex items-center gap-3 text-left group"
+          className="flex items-center gap-2.5 sm:gap-3 text-left group shrink-0"
         >
-          <div className="w-10 h-10 rounded-full border border-amber-400/30 flex items-center justify-center bg-amber-400/5 group-hover:border-amber-400/70 transition-colors">
-            <Camera className="w-5 h-5 text-amber-400" />
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-amber-400/30 flex items-center justify-center bg-amber-400/5 group-hover:border-amber-400/70 transition-colors shrink-0">
+            <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
           </div>
           <div>
-            <span className="font-editorial text-xl sm:text-2xl tracking-[0.2em] font-medium text-white uppercase block leading-none">
+            <span className="font-editorial text-lg sm:text-2xl tracking-[0.15em] sm:tracking-[0.2em] font-medium text-white uppercase block leading-none">
               Lente Abierto MX
             </span>
-            <span className="text-[9px] font-sans tracking-[0.25em] text-zinc-400 uppercase mt-1 block">
+            <span className="text-[8px] sm:text-[9px] font-sans tracking-[0.18em] sm:tracking-[0.25em] text-zinc-400 uppercase mt-1 block truncate max-w-[140px] sm:max-w-none">
               Fotografía de Autor · Pixieset Edition
             </span>
           </div>
@@ -116,18 +116,19 @@ export const Navbar: React.FC<NavbarProps> = ({
         </nav>
 
         {/* Right side controls: Backend Admin & User Profile */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3">
           {/* Admin exclusive view vs discreet lock */}
           {isAdmin ? (
-            <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 p-1 rounded-full pl-3 pr-1.5">
+            <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 p-1 rounded-full pl-2 sm:pl-3 pr-1">
               <button
                 onClick={() => onSelectTab('admin')}
-                className={`flex items-center gap-1.5 text-xs tracking-wider uppercase font-medium transition-colors ${
+                className={`flex items-center gap-1 sm:gap-1.5 text-xs tracking-wider uppercase font-medium transition-colors ${
                   currentTab === 'admin' ? 'text-amber-300 font-bold' : 'text-zinc-300 hover:text-white'
                 }`}
               >
-                <LayoutDashboard className="w-3.5 h-3.5 text-amber-400" />
-                <span>Backend Activo</span>
+                <LayoutDashboard className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span className="hidden sm:inline">Backend Activo</span>
+                <span className="sm:hidden text-[10px] font-bold">Admin</span>
               </button>
 
               <button
@@ -135,7 +136,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="p-1 rounded-full hover:bg-amber-500/20 text-amber-400/80 hover:text-amber-300 transition-colors"
                 title="Bloquear y salir del modo administrador"
               >
-                <Lock className="w-3.5 h-3.5" />
+                <Lock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               </button>
             </div>
           ) : (

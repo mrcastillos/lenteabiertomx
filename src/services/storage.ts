@@ -903,5 +903,72 @@ export function clearFavoriteLogs(): void {
   }
 }
 
+export function getPhotoFavoriteCount(photoId: string): number {
+  try {
+    const logs = getStoredFavoriteLogs();
+    const emails = new Set(
+      logs.filter((l) => l.photoId === photoId).map((l) => l.userEmail.toLowerCase())
+    );
+    const localFavs = getFavorites();
+    if (localFavs.includes(photoId) && emails.size === 0) {
+      return 1;
+    }
+    return Math.max(emails.size, localFavs.includes(photoId) ? 1 : 0);
+  } catch {
+    return 0;
+  }
+}
+
+export function exportAllDataAsJson(): string {
+  const data = {
+    app: 'Lente Abierto MX',
+    version: '2.0.0',
+    exportedAt: new Date().toISOString(),
+    galleries: getStoredGalleries(),
+    categories: getStoredCategories(),
+    siteContent: getStoredSiteContent(),
+    instagramPosts: getStoredInstagramPosts(),
+  };
+  return JSON.stringify(data, null, 2);
+}
+
+export function importAllDataFromJson(jsonStr: string): { success: boolean; message: string } {
+  try {
+    const parsed = JSON.parse(jsonStr);
+    if (!parsed || typeof parsed !== 'object') {
+      return { success: false, message: 'El archivo no contiene un JSON válido.' };
+    }
+    if (Array.isArray(parsed.galleries) && parsed.galleries.length > 0) {
+      saveGalleries(parsed.galleries);
+    }
+    if (Array.isArray(parsed.categories) && parsed.categories.length > 0) {
+      saveCategories(parsed.categories);
+    }
+    if (parsed.siteContent && typeof parsed.siteContent === 'object') {
+      saveSiteContent(parsed.siteContent);
+    }
+    if (Array.isArray(parsed.instagramPosts) && parsed.instagramPosts.length > 0) {
+      saveInstagramPosts(parsed.instagramPosts);
+    }
+    return { success: true, message: 'Datos sincronizados exitosamente en este navegador.' };
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Error al importar archivo de sincronización.' };
+  }
+}
+
+export function clearBrowserCacheAndReload(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY_GALLERIES);
+    localStorage.removeItem(STORAGE_KEY_CATEGORIES);
+    localStorage.removeItem(STORAGE_KEY_SITE_CONTENT);
+    localStorage.removeItem(STORAGE_KEY_INSTAGRAM_POSTS);
+    localStorage.removeItem(STORAGE_KEY_FAVORITES);
+    sessionStorage.clear();
+  } catch (e) {
+    console.error('Error clearing cache', e);
+  }
+  window.location.reload();
+}
+
 
 

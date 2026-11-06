@@ -27,6 +27,7 @@ import {
   removeFavoriteLog,
   isGalleryPinVerifiedInSession,
   setGalleryPinVerifiedInSession,
+  getPhotoFavoriteCount,
 } from '../services/storage';
 
 interface GalleryViewProps {
@@ -210,49 +211,51 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   return (
     <div className="min-h-screen bg-[#0c0d0e] text-zinc-100" onContextMenu={(e) => e.preventDefault()}>
       {/* Top Breadcrumb & Bar */}
-      <nav className="sticky top-0 z-30 bg-[#0c0d0e]/90 backdrop-blur-md border-b border-white/5 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+      <nav className="sticky top-0 z-30 bg-[#0c0d0e]/90 backdrop-blur-md border-b border-white/5 px-3 sm:px-8 py-3 flex items-center justify-between gap-2">
         <button
           onClick={onBack}
-          className="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-zinc-400 hover:text-white transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs uppercase tracking-wider text-zinc-400 hover:text-white transition-colors shrink-0"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Volver al Portafolio</span>
+          <ArrowLeft className="w-4 h-4 shrink-0" />
+          <span className="hidden sm:inline">Volver al Portafolio</span>
+          <span className="sm:hidden font-medium">Volver</span>
         </button>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-1.5 sm:gap-2.5">
           {/* Favorites toggle filter */}
           <button
             onClick={() => setFilterFavoritesOnly(!filterFavoritesOnly)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium tracking-wide flex items-center gap-1.5 border transition-all ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-medium tracking-wide flex items-center gap-1.5 border transition-all ${
               filterFavoritesOnly
                 ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                 : 'bg-white/5 text-zinc-400 border-white/10 hover:text-white'
             }`}
           >
-            <Heart className={`w-3.5 h-3.5 ${filterFavoritesOnly ? 'fill-rose-400' : ''}`} />
-            <span>Favoritos ({gallery.photos.filter((p) => favorites.includes(p.id)).length})</span>
+            <Heart className={`w-3.5 h-3.5 ${filterFavoritesOnly ? 'fill-rose-400 text-rose-400' : ''}`} />
+            <span className="hidden sm:inline">Favoritos ({gallery.photos.filter((p) => favorites.includes(p.id)).length})</span>
+            <span className="sm:hidden text-[11px] font-mono">({gallery.photos.filter((p) => favorites.includes(p.id)).length})</span>
           </button>
 
           {/* Share button */}
           <button
             onClick={handleShare}
-            className="p-2 rounded-full bg-white/5 border border-white/10 text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1.5 sm:p-2 rounded-full bg-white/5 border border-white/10 text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
             title="Compartir enlace de galería"
           >
-            {copiedLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Share2 className="w-4 h-4" />}
+            {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5" />}
           </button>
 
           {/* Download all button */}
           <button
             onClick={handleDownloadFullClick}
             disabled={isZipDownloading}
-            className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-md shadow-amber-500/20 disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-md shadow-amber-500/20 disabled:opacity-50 shrink-0"
           >
             <Download className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">
               {isZipDownloading ? 'Preparando ZIP...' : 'Descargar Galería (ZIP)'}
             </span>
-            <span className="sm:hidden">ZIP</span>
+            <span className="sm:hidden text-[11px] font-bold">ZIP</span>
           </button>
         </div>
       </nav>
@@ -364,12 +367,13 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
             {displayedPhotos.map((photo) => {
               const photoIndex = gallery.photos.findIndex((p) => p.id === photo.id);
               const isFav = favorites.includes(photo.id);
+              const favCount = getPhotoFavoriteCount(photo.id);
 
               return (
                 <div
                   key={photo.id}
                   onClick={() => setSelectedPhotoIndex(photoIndex)}
-                  className="group relative cursor-pointer break-inside-avoid overflow-hidden rounded-lg bg-[#141518] border border-white/5 hover:border-amber-500/30 transition-all duration-300 shadow-lg"
+                  className="group relative cursor-pointer break-inside-avoid overflow-hidden rounded-xl bg-[#141518] border border-white/5 hover:border-amber-500/30 transition-all duration-300 shadow-lg"
                 >
                   <div className="relative overflow-hidden">
                     <img
@@ -391,44 +395,52 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
                       onDragStart={(e) => e.preventDefault()}
                     />
 
-                    {/* Hover Overlay with Action Buttons */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-30 flex flex-col justify-between p-4">
+                    {/* Overlay with Action Buttons (Visible on mobile touch, hover on desktop) */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300 z-30 flex flex-col justify-between p-3 sm:p-4 pointer-events-none">
                       {/* Top Action Icons */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] uppercase font-mono tracking-widest px-2 py-0.5 rounded bg-black/60 backdrop-blur-md text-zinc-300 border border-white/10">
-                          {photo.exif?.aperture || 'f/1.4'} · {photo.exif?.camera?.split(' ')[1] || 'Sony'}
-                        </span>
+                      <div className="flex items-center justify-between pointer-events-auto">
+                        {photo.exif?.camera ? (
+                          <span className="text-[10px] uppercase font-mono tracking-widest px-2 py-0.5 rounded bg-black/70 backdrop-blur-md text-zinc-300 border border-white/10">
+                            {photo.exif.camera} {photo.exif.aperture ? `· ${photo.exif.aperture}` : ''}
+                          </span>
+                        ) : (
+                          <span />
+                        )}
 
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 ml-auto">
+                          {/* Heart button with multi-user count */}
                           <button
                             onClick={(e) => handleFavoriteClick(photo, e)}
-                            className={`p-2 rounded-full backdrop-blur-md transition-colors ${
+                            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full backdrop-blur-md transition-all text-xs font-mono shadow-md ${
                               isFav
-                                ? 'bg-rose-500 text-white'
-                                : 'bg-black/60 text-white/80 hover:text-white hover:bg-black/80'
+                                ? 'bg-rose-500 text-white shadow-rose-500/30'
+                                : favCount > 0
+                                ? 'bg-black/75 text-rose-300 border border-rose-500/40 hover:bg-black/90'
+                                : 'bg-black/60 text-white/90 hover:text-white hover:bg-black/80'
                             }`}
-                            title={isFav ? 'Quitar de Favoritos' : 'Guardar en Favoritos'}
+                            title={isFav ? 'En tus favoritos' : 'Guardar en Favoritos'}
                           >
-                            <Heart className={`w-4 h-4 ${isFav ? 'fill-current' : ''}`} />
+                            <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current text-white' : favCount > 0 ? 'fill-rose-400 text-rose-400' : 'text-white'}`} />
+                            {favCount > 0 && <span className="font-bold text-[11px]">{favCount}</span>}
                           </button>
 
                           <button
                             onClick={(e) => handleSinglePhotoDownloadClick(photo, e)}
-                            className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-white/80 hover:text-white backdrop-blur-md transition-colors"
+                            className="p-1.5 sm:p-2 rounded-full bg-black/60 hover:bg-black/80 text-white/90 hover:text-white backdrop-blur-md transition-colors shadow-md"
                             title="Descargar fotografía limpia sin marca"
                           >
-                            <Download className="w-4 h-4" />
+                            <Download className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
 
                       {/* Bottom Photo Title */}
-                      <div>
-                        <p className="text-sm font-editorial tracking-wide text-white drop-shadow">
+                      <div className="pointer-events-auto">
+                        <p className="text-xs sm:text-sm font-editorial tracking-wide text-white drop-shadow">
                           {photo.title}
                         </p>
                         {photo.caption && (
-                          <p className="text-[11px] text-zinc-300 line-clamp-1 mt-0.5 font-light">
+                          <p className="text-[10px] sm:text-[11px] text-zinc-300 line-clamp-1 mt-0.5 font-light">
                             {photo.caption}
                           </p>
                         )}

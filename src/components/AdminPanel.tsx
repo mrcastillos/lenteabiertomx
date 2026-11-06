@@ -514,13 +514,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       caption: 'Toma en luz natural',
       aspectRatio: 'landscape',
       dateAdded: new Date().toISOString(),
-      exif: {
-        camera: 'Sony α7R V',
-        lens: 'FE 35mm F1.4 GM',
-        aperture: 'f/1.4',
-        shutterSpeed: '1/800s',
-        iso: 'ISO 100',
-      },
+      exif: undefined,
     };
 
     setGalleryForm((prev) => ({

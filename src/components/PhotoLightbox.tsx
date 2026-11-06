@@ -24,6 +24,7 @@ import {
   recordFavoriteLog,
   removeFavoriteLog,
   isGalleryPinVerifiedInSession,
+  getPhotoFavoriteCount,
 } from '../services/storage';
 
 interface PhotoLightboxProps {
@@ -59,6 +60,7 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
   const [isDownloading, setIsDownloading] = useState(false);
 
   const currentPhoto = photos[currentIndex];
+  const favCount = currentPhoto ? getPhotoFavoriteCount(currentPhoto.id) : 0;
 
   const handleToggleFavClick = () => {
     const client = getClientSessionInfo();
@@ -200,7 +202,7 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
           </span>
           {gallery.downloadPin && (
             <span
-              className={`text-[11px] px-2 py-0.5 rounded-full flex items-center gap-1 ${
+              className={`text-[11px] px-2 py-0.5 rounded-full hidden md:inline-flex items-center gap-1 ${
                 isPinVerified
                   ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                   : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
@@ -213,19 +215,22 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Favorite button */}
+        <div className="flex items-center gap-1.5 sm:gap-3">
+          {/* Favorite button with count */}
           <button
             onClick={handleToggleFavClick}
-            className={`p-2 rounded-full transition-colors ${
+            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full transition-all text-xs font-mono ${
               isFavorite
-                ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'
+                ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/30'
+                : favCount > 0
+                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30'
                 : 'text-zinc-400 hover:text-white hover:bg-white/10'
             }`}
-            title={isFavorite ? 'Quitar de Favoritos' : 'Marcar como Favorito'}
+            title={isFavorite ? 'En tus favoritos' : 'Guardar en Favoritos'}
             aria-label="Favorito"
           >
-            <Heart className={`w-5 h-5 ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}`} />
+            <Heart className={`w-4 h-4 ${isFavorite ? 'fill-current text-white' : favCount > 0 ? 'fill-rose-400 text-rose-400' : ''}`} />
+            {favCount > 0 && <span className="font-bold text-[11px]">{favCount}</span>}
           </button>
 
           {/* Info toggle */}
@@ -234,8 +239,8 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
             className={`p-2 rounded-full transition-colors ${
               showInfo ? 'bg-amber-500/20 text-amber-300' : 'text-zinc-400 hover:text-white hover:bg-white/10'
             }`}
-            title="Datos de Toma & EXIF"
-            aria-label="Detalles EXIF"
+            title="Datos de Toma"
+            aria-label="Detalles de toma"
           >
             <Info className="w-5 h-5" />
           </button>
@@ -324,9 +329,9 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
           />
         </div>
 
-        {/* EXIF / Info Drawer */}
+        {/* EXIF / Info Drawer (Bottom-sheet on mobile, floating panel on desktop) */}
         {showInfo && (
-          <aside className="absolute right-4 bottom-4 top-20 w-80 max-w-[90vw] bg-[#121316]/95 border border-white/10 backdrop-blur-xl rounded-2xl p-5 z-40 shadow-2xl flex flex-col justify-between overflow-y-auto animate-fadeIn">
+          <aside className="absolute w-full sm:w-85 inset-x-0 bottom-0 top-auto sm:inset-x-auto sm:right-4 sm:bottom-4 sm:top-20 max-h-[85vh] bg-[#121316]/95 border border-white/10 backdrop-blur-xl rounded-t-3xl sm:rounded-2xl p-5 z-40 shadow-2xl flex flex-col justify-between overflow-y-auto animate-fadeIn">
             <div>
               <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
                 <h4 className="font-editorial text-lg tracking-wider text-amber-300 font-medium">
@@ -367,31 +372,53 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
                   </div>
                 )}
 
-                {/* Camera & EXIF specs */}
-                <div className="pt-2 border-t border-white/5 space-y-2.5">
-                  <div className="flex items-center gap-2 text-zinc-300">
-                    <Camera className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{currentPhoto.exif?.camera || 'Sony α Series'}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-zinc-300">
-                    <Layers className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{currentPhoto.exif?.lens || 'Sony G Master Prime'}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 bg-white/5 p-2 rounded-lg text-center font-mono text-[11px] text-zinc-300">
-                    <div>
-                      <span className="text-[9px] text-zinc-500 block">APERTURA</span>
-                      {currentPhoto.exif?.aperture || 'f/1.4'}
-                    </div>
-                    <div>
-                      <span className="text-[9px] text-zinc-500 block">VELOCIDAD</span>
-                      {currentPhoto.exif?.shutterSpeed || '1/800s'}
-                    </div>
-                    <div>
-                      <span className="text-[9px] text-zinc-500 block">SENSIBILIDAD</span>
-                      {currentPhoto.exif?.iso || 'ISO 100'}
-                    </div>
-                  </div>
+                {/* Favorite count indicator */}
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/5 border border-white/5 text-zinc-300 text-xs font-mono">
+                  <Heart className={`w-3.5 h-3.5 ${favCount > 0 ? 'fill-rose-400 text-rose-400' : 'text-zinc-500'}`} />
+                  <span>
+                    {favCount > 0
+                      ? `${favCount} ${favCount === 1 ? 'cliente la guardó en favoritos' : 'clientes la guardaron en favoritos'}`
+                      : 'Aún sin favoritos guardados'}
+                  </span>
                 </div>
+
+                {/* Camera & EXIF specs - ONLY rendered if genuine camera metadata exists on photo */}
+                {currentPhoto.exif?.camera && (
+                  <div className="pt-2 border-t border-white/5 space-y-2.5">
+                    <div className="flex items-center gap-2 text-zinc-300">
+                      <Camera className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{currentPhoto.exif.camera}</span>
+                    </div>
+                    {currentPhoto.exif.lens && (
+                      <div className="flex items-center gap-2 text-zinc-300">
+                        <Layers className="w-3.5 h-3.5 text-amber-400" />
+                        <span>{currentPhoto.exif.lens}</span>
+                      </div>
+                    )}
+                    {(currentPhoto.exif.aperture || currentPhoto.exif.shutterSpeed || currentPhoto.exif.iso) && (
+                      <div className="grid grid-cols-3 gap-2 bg-white/5 p-2 rounded-lg text-center font-mono text-[11px] text-zinc-300">
+                        {currentPhoto.exif.aperture && (
+                          <div>
+                            <span className="text-[9px] text-zinc-500 block">APERTURA</span>
+                            {currentPhoto.exif.aperture}
+                          </div>
+                        )}
+                        {currentPhoto.exif.shutterSpeed && (
+                          <div>
+                            <span className="text-[9px] text-zinc-500 block">VELOCIDAD</span>
+                            {currentPhoto.exif.shutterSpeed}
+                          </div>
+                        )}
+                        {currentPhoto.exif.iso && (
+                          <div>
+                            <span className="text-[9px] text-zinc-500 block">SENSIBILIDAD</span>
+                            {currentPhoto.exif.iso}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] text-amber-300/90 leading-relaxed">
                   Esta fotografía visualizada en pantalla cuenta con marca de agua protectora. Al descargarla obtendrás el archivo original en resolución nativa sin marcas de agua.
