@@ -15,6 +15,12 @@ import { Gallery, UserProfile, SiteContentConfig } from './types';
 import { getStoredGalleries, saveGalleries, getFavorites, toggleFavorite, getStoredSiteContent, saveSiteContent } from './services/storage';
 import { getCurrentUser, setCurrentUser, logoutUser, isAdminLoggedIn, setAdminLoggedIn } from './services/userService';
 import { initAuth } from './services/firebase';
+import {
+  subscribeToGalleries,
+  saveGalleryToCloud,
+  subscribeToSiteContent,
+  saveSiteContentToCloud,
+} from './services/firestoreSync';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<
@@ -38,8 +44,22 @@ export default function App() {
     setUser(getCurrentUser());
     setIsAdmin(isAdminLoggedIn());
 
+    // Subscribe to live cloud galleries from Firestore
+    const unsubGalleries = subscribeToGalleries((cloudGalleries) => {
+      setGalleries(cloudGalleries);
+      if (selectedGallery) {
+        const found = cloudGalleries.find((g) => g.id === selectedGallery.id);
+        if (found) setSelectedGallery(found);
+      }
+    });
+
+    // Subscribe to live site content (CMS) from Firestore
+    const unsubContent = subscribeToSiteContent((cloudContent) => {
+      setSiteContent(cloudContent);
+    });
+
     // Initialize Firebase Auth listener
-    initAuth(
+    const unsubAuth = initAuth(
       (fbUser) => {
         // On Google Auth success
         const current = getCurrentUser();
@@ -60,14 +80,38 @@ export default function App() {
         // Not actively logged in with Firebase, rely on local session
       }
     );
+
+    return () => {
+      unsubGalleries();
+      unsubContent();
+      if (typeof unsubAuth === 'function') unsubAuth();
+    };
   }, []);
 
-  const handleSaveGalleries = (newGalleries: Gallery[]) => {
+  const handleSaveGalleries = async (newGalleries: Gallery[]) => {
     setGalleries(newGalleries);
     saveGalleries(newGalleries);
     if (selectedGallery) {
       const updated = newGalleries.find((g) => g.id === selectedGallery.id);
       if (updated) setSelectedGallery(updated);
+    }
+    // Save to Firestore so every browser/device sees the galleries instantly
+    for (const g of newGalleries) {
+      try {
+        await saveGalleryToCloud(g);
+      } catch (e) {
+        console.error('Error saving gallery to cloud:', e);
+      }
+    }
+  };
+
+  const handleSaveSiteContent = async (updated: SiteContentConfig) => {
+    setSiteContent(updated);
+    saveSiteContent(updated);
+    try {
+      await saveSiteContentToCloud(updated);
+    } catch (e) {
+      console.error('Error saving site content to cloud:', e);
     }
   };
 
@@ -204,11 +248,7 @@ export default function App() {
                   onSaveGalleries={handleSaveGalleries}
                   onPreviewGallery={handleSelectGallery}
                   onLockAdmin={handleLockAdmin}
-                  siteContent={siteContent}
-                  onSaveSiteContent={(updated) => {
-                    setSiteContent(updated);
-                    saveSiteContent(updated);
-                  }}
+                  onSaveSiteContent={handleSaveSiteContent}
                 />
               ) : (
                 <div className="max-w-md mx-auto px-4 py-24 text-center space-y-5">

@@ -79,6 +79,7 @@ import {
   clearFavoriteLogs,
   removeFavoriteLog,
 } from '../services/storage';
+import { deleteGalleryFromCloud } from '../services/firestoreSync';
 import {
   getStoredAdminCredentials,
   saveAdminCredentials,
@@ -332,6 +333,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     if (confirm('¿Estás seguro de que deseas eliminar esta galería de tu portafolio?')) {
       const updated = galleries.filter((g) => g.id !== id);
       onSaveGalleries(updated);
+      deleteGalleryFromCloud(id).catch((err) => console.error('Cloud delete error:', err));
     }
   };
 

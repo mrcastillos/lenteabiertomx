@@ -1,4 +1,5 @@
 import { Gallery, BookingInquiry, SiteContentConfig, InstagramPost, DownloadLog, FavoriteLog } from '../types';
+import { saveDownloadLogToCloud, saveFavoriteLogToCloud, saveInquiryToCloud } from './firestoreSync';
 
 const STORAGE_KEY_GALLERIES = 'lente_abierto_galleries_v2';
 const STORAGE_KEY_INQUIRIES = 'lente_abierto_inquiries_v2';
@@ -433,6 +434,7 @@ export function saveInquiry(inquiry: BookingInquiry): void {
   try {
     const current = getStoredInquiries();
     localStorage.setItem(STORAGE_KEY_INQUIRIES, JSON.stringify([inquiry, ...current]));
+    saveInquiryToCloud(inquiry).catch(() => {});
   } catch (e) {
     console.error('Error saving inquiry', e);
   }
@@ -795,6 +797,7 @@ export function recordDownloadLog(
   const updated = [newLog, ...current];
   try {
     localStorage.setItem(STORAGE_KEY_DOWNLOAD_LOGS, JSON.stringify(updated.slice(0, 500)));
+    saveDownloadLogToCloud(newLog).catch(() => {});
   } catch (e) {
     console.error('Error saving download log', e);
   }
@@ -877,6 +880,7 @@ export function recordFavoriteLog(
   const updated = [newLog, ...current];
   try {
     localStorage.setItem(STORAGE_KEY_FAVORITE_LOGS, JSON.stringify(updated.slice(0, 1000)));
+    saveFavoriteLogToCloud(newLog).catch(() => {});
   } catch (e) {
     console.error('Error saving favorite log', e);
   }

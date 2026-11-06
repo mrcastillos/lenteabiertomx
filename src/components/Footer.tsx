@@ -129,20 +129,6 @@ export const Footer: React.FC<FooterProps> = ({
                   </button>
                 )}
               </li>
-              <li>
-                <button
-                  onClick={() => {
-                    if (window.confirm('¿Deseas limpiar la memoria caché y recargar la página para sincronizar con la última versión?')) {
-                      localStorage.clear();
-                      window.location.reload();
-                    }
-                  }}
-                  className="hover:text-amber-300 transition-colors text-zinc-500 hover:underline flex items-center gap-1 text-[11px]"
-                  title="Borra la memoria local de este navegador y recarga la versión original"
-                >
-                  <span>🔄 Sincronizar / Limpiar Caché</span>
-                </button>
-              </li>
             </ul>
           </div>
 

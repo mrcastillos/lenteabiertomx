@@ -7,18 +7,23 @@ import {
   signOut,
   User,
 } from 'firebase/auth';
+import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase App singleton safely
 let authInstance: any = null;
+let dbInstance: any = null;
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+
 try {
-  const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   authInstance = getAuth(app);
+  dbInstance = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
 } catch (e) {
   console.warn('Firebase initialized with fallback:', e);
 }
 
 export const auth = authInstance;
+export const db = dbInstance;
 
 // Configure Google Provider with Drive Scope
 export const googleProvider = new GoogleAuthProvider();
