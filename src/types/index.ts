@@ -126,6 +126,14 @@ export interface GearSection {
 }
 
 export interface SiteContentConfig {
+  general?: {
+    pageTitle: string;
+    pageDescription: string;
+    brandName: string;
+    brandTagline: string;
+    faviconUrl?: string;
+    logoIconUrl?: string;
+  };
   hero: {
     badge: string;
     title: string;

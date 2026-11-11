@@ -79,7 +79,7 @@ import {
   clearFavoriteLogs,
   removeFavoriteLog,
 } from '../services/storage';
-import { deleteGalleryFromCloud } from '../services/firestoreSync';
+import { deleteGalleryFromCloud, saveGalleryToCloud } from '../services/firestoreSync';
 import {
   getStoredAdminCredentials,
   saveAdminCredentials,
@@ -116,7 +116,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const [cmsContent, setCmsContent] = useState<SiteContentConfig>(siteContent || getStoredSiteContent());
   const [cmsSaveSuccess, setCmsSaveSuccess] = useState(false);
-  const [cmsSubTab, setCmsSubTab] = useState<'bio' | 'hero' | 'contact' | 'pricing' | 'announcement' | 'instagram'>('bio');
+  const [cmsSubTab, setCmsSubTab] = useState<'general' | 'bio' | 'hero' | 'contact' | 'pricing' | 'announcement' | 'instagram'>('general');
 
   // Download Logs State
   const [downloadLogs, setDownloadLogs] = useState<DownloadLog[]>([]);
@@ -155,6 +155,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     location: string;
     bio: string;
     assignedGalleries: string[];
+    avatarUrl: string;
   }>({
     name: '',
     email: '',
@@ -165,6 +166,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     location: 'México',
     bio: '',
     assignedGalleries: [],
+    avatarUrl: '',
   });
 
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
@@ -179,6 +181,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     location: string;
     bio: string;
     assignedGalleries: string[];
+    avatarUrl: string;
   }>({
     name: '',
     email: '',
@@ -189,7 +192,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     location: '',
     bio: '',
     assignedGalleries: [],
+    avatarUrl: '',
   });
+
+  // Google Photos Album & Batch Importer State
+  const [googlePhotosInput, setGooglePhotosInput] = useState('');
+  const [googlePhotosAlbumTitle, setGooglePhotosAlbumTitle] = useState('');
+  const [googlePhotosCategory, setGooglePhotosCategory] = useState('Bodas');
+  const [googlePhotosLocation, setGooglePhotosLocation] = useState('México');
+  const [googlePhotosPin, setGooglePhotosPin] = useState('2026');
+  const [googlePhotosDownloadPin, setGooglePhotosDownloadPin] = useState('8309');
+  const [googlePhotosFeedback, setGooglePhotosFeedback] = useState<{ isError: boolean; message: string } | null>(null);
+  const [googlePhotosParsedList, setGooglePhotosParsedList] = useState<Photo[]>([]);
 
   // Instagram CMS State
   const [instagramPostsList, setInstagramPostsList] = useState<InstagramPost[]>(getStoredInstagramPosts());
@@ -413,6 +427,136 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     onSaveGalleries([newGallery, ...galleries]);
     setPreviewedDrivePhotos([]);
     setDriveSyncSuccess('¡Galería creada exitosamente con miniatura principal asignada!');
+    setActiveTab('galleries');
+  };
+
+  // Google Photos parsing & gallery creation handlers
+  const handleProcessGooglePhotos = () => {
+    setGooglePhotosFeedback(null);
+    if (!googlePhotosInput.trim()) {
+      setGooglePhotosFeedback({
+        isError: true,
+        message: 'Por favor pega al menos un enlace de fotografía o álbum de Google Fotos.',
+      });
+      return;
+    }
+
+    const urlMatches = googlePhotosInput.match(/(https?:\/\/[^\s"'<>]+)/g) || [];
+    if (urlMatches.length === 0) {
+      setGooglePhotosFeedback({
+        isError: true,
+        message: 'No se encontraron enlaces válidos (deben comenzar con http:// o https://).',
+      });
+      return;
+    }
+
+    const cleanedUrls: string[] = [];
+    let isAlbumLink = false;
+
+    for (let u of urlMatches) {
+      u = u.replace(/[),.;]+$/, '').trim();
+      if (u.includes('photos.app.goo.gl') || (u.includes('photos.google.com') && u.includes('/share/'))) {
+        isAlbumLink = true;
+      }
+      cleanedUrls.push(u);
+    }
+
+    const validImageUrls = cleanedUrls.filter(
+      (u) => !u.includes('photos.app.goo.gl') && !u.includes('/share/')
+    );
+
+    if (validImageUrls.length > 0) {
+      const generatedPhotos: Photo[] = validImageUrls.map((rawUrl, idx) => {
+        let highResUrl = rawUrl;
+        let thumbUrl = rawUrl;
+
+        if (rawUrl.includes('googleusercontent.com') || rawUrl.includes('ggpht.com')) {
+          const baseUrl = rawUrl.replace(/=[wsh0-9-]+$/i, '');
+          highResUrl = `${baseUrl}=s2048`;
+          thumbUrl = `${baseUrl}=s800`;
+        }
+
+        return {
+          id: `gphoto-${Date.now()}-${idx}`,
+          title: `Fotografía ${String(idx + 1).padStart(2, '0')}`,
+          url: highResUrl,
+          thumbnailUrl: thumbUrl,
+          aspectRatio: 'landscape',
+          dateAdded: new Date().toISOString(),
+        };
+      });
+
+      setGooglePhotosParsedList(generatedPhotos);
+      setGooglePhotosFeedback({
+        isError: false,
+        message: `¡Se procesaron ${generatedPhotos.length} fotografía(s) con éxito en alta resolución! Revisa la vista previa y haz clic en "Crear Colección".`,
+      });
+    } else if (isAlbumLink) {
+      setGooglePhotosFeedback({
+        isError: false,
+        message: '🔗 Enlace de Álbum de Google Fotos recibido. Como Google protege los álbumes compartidos con sesión web privada, abre el álbum en tu navegador, haz clic derecho sobre las fotos ("Copiar dirección de la imagen") y pega esos enlaces aquí para crear la galería en alta resolución.',
+      });
+    } else {
+      setGooglePhotosFeedback({
+        isError: true,
+        message: 'No se detectaron URLs de imágenes directas. Asegúrate de pegar los enlaces a las fotos.',
+      });
+    }
+  };
+
+  const handleCreateGalleryFromGooglePhotos = async () => {
+    if (googlePhotosParsedList.length === 0) {
+      setGooglePhotosFeedback({
+        isError: true,
+        message: 'Debes escanear y tener al menos una foto para crear la galería.',
+      });
+      return;
+    }
+
+    const title = googlePhotosAlbumTitle.trim() || 'Colección Google Fotos';
+    const cover = googlePhotosParsedList[0]?.url || '';
+    const newGallery: Gallery = {
+      id: `gal-gphotos-${Date.now()}`,
+      title,
+      slug: `gphotos-${Date.now()}`,
+      category: googlePhotosCategory || categories[0] || 'Bodas',
+      clientName: 'Cliente Álbum Google Fotos',
+      clientEmail: '',
+      eventDate: new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }),
+      location: googlePhotosLocation.trim() || 'México',
+      coverPhotoUrl: cover,
+      description: `Galería fotográfica importada desde Google Fotos. ${googlePhotosParsedList.length} capturas en alta definición para visualización y descarga.`,
+      accessPin: googlePhotosPin.trim() || '2026',
+      downloadPin: googlePhotosDownloadPin.trim() || '8309',
+      isPrivate: false,
+      watermark: {
+        enabled: true,
+        text: 'LENTE ABIERTO MX',
+        subtext: 'PREVIA DIGITAL · PROTEGIDO',
+        opacity: 0.35,
+        style: 'diagonal-pattern',
+      },
+      photos: googlePhotosParsedList,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedGalleries = [newGallery, ...galleries];
+    onSaveGalleries(updatedGalleries);
+
+    try {
+      await saveGalleryToCloud(newGallery);
+    } catch (e) {
+      console.warn('Could not save to Cloud Firestore immediately:', e);
+    }
+
+    setGooglePhotosFeedback({
+      isError: false,
+      message: `🎉 ¡Galería "${title}" creada con éxito con ${googlePhotosParsedList.length} fotos y sincronizada en la nube!`,
+    });
+
+    setGooglePhotosInput('');
+    setGooglePhotosParsedList([]);
+    setGooglePhotosAlbumTitle('');
     setActiveTab('galleries');
   };
 
@@ -1234,6 +1378,210 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </div>
                     </button>
                   ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 2: GOOGLE FOTOS & ENLACES DE ÁLBUMES */}
+          <div className="p-8 rounded-3xl bg-[#121316] border border-amber-500/20 space-y-6 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+              <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                <ImageIcon className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] uppercase font-mono tracking-widest mb-1">
+                  <Sparkles className="w-3 h-3" />
+                  <span>Google Fotos Integration</span>
+                </div>
+                <h3 className="font-editorial text-2xl text-white font-medium">
+                  Importar Álbum o Enlaces de Google Fotos
+                </h3>
+                <p className="text-xs text-zinc-400 font-light mt-0.5">
+                  Importa colecciones completas pegando enlaces de Google Fotos o de un álbum compartido sin tener que descargar archivos pesados.
+                </p>
+              </div>
+            </div>
+
+            {/* Instruction helper */}
+            <div className="p-4 rounded-xl bg-black/40 border border-white/5 text-xs text-zinc-300 space-y-2">
+              <span className="font-mono text-amber-400 font-semibold uppercase text-[11px] block">
+                💡 ¿Cómo importar desde Google Fotos?
+              </span>
+              <p className="leading-relaxed font-light text-zinc-300">
+                1. <strong>Lote de enlaces directos (Recomendado):</strong> Abre tu álbum en Google Fotos, abre cualquier foto, haz clic derecho y selecciona <em>"Copiar dirección de la imagen"</em>. Pega una o más URLs aquí (una por línea). La plataforma detecta automáticamente enlaces de Google (<code className="text-amber-300 font-mono">googleusercontent.com</code>) y los optimiza en alta resolución (2048px) y miniaturas rápidas.
+              </p>
+              <p className="leading-relaxed font-light text-zinc-400">
+                2. <strong>Enlace compartido:</strong> Si pegas un enlace de álbum (<code className="text-amber-300 font-mono">photos.app.goo.gl/...</code> o <code className="text-amber-300 font-mono">photos.google.com/share/...</code>), te guiaremos paso a paso para procesar las imágenes.
+              </p>
+            </div>
+
+            {/* Input textarea */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider text-zinc-400 mb-2 font-mono">
+                  Pega aquí los Enlaces de Google Fotos o de tu Álbum:
+                </label>
+                <textarea
+                  rows={4}
+                  value={googlePhotosInput}
+                  onChange={(e) => setGooglePhotosInput(e.target.value)}
+                  placeholder="https://lh3.googleusercontent.com/pw/...&#10;https://lh3.googleusercontent.com/pw/...&#10;o https://photos.app.goo.gl/..."
+                  className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-amber-500 font-mono resize-y"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleProcessGooglePhotos}
+                  className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-md shadow-amber-500/20 flex items-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Escanear y Preparar Fotos</span>
+                </button>
+
+                {googlePhotosParsedList.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGooglePhotosParsedList([]);
+                      setGooglePhotosFeedback(null);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10 text-xs font-mono uppercase"
+                  >
+                    Limpiar Lista
+                  </button>
+                )}
+              </div>
+
+              {googlePhotosFeedback && (
+                <div
+                  className={`p-4 rounded-xl text-xs flex items-center gap-2.5 ${
+                    googlePhotosFeedback.isError
+                      ? 'bg-red-950/50 border border-red-500/40 text-red-200'
+                      : 'bg-emerald-950/50 border border-emerald-500/40 text-emerald-200'
+                  }`}
+                >
+                  {googlePhotosFeedback.isError ? (
+                    <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                  ) : (
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  )}
+                  <span className="leading-relaxed">{googlePhotosFeedback.message}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Parsed Photos Preview & Gallery Builder */}
+            {googlePhotosParsedList.length > 0 && (
+              <div className="pt-6 border-t border-white/5 space-y-6 animate-fadeIn">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h4 className="font-editorial text-xl text-white font-medium">
+                      Fotografías Listas para Publicar ({googlePhotosParsedList.length})
+                    </h4>
+                    <p className="text-xs text-zinc-400">
+                      La primera fotografía se utilizará como miniatura/portada oficial de la colección.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Gallery Details Form */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 p-5 rounded-2xl bg-black/40 border border-white/5 text-xs">
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-mono text-[10px] mb-1">
+                      Título de la Colección *
+                    </label>
+                    <input
+                      type="text"
+                      value={googlePhotosAlbumTitle}
+                      onChange={(e) => setGooglePhotosAlbumTitle(e.target.value)}
+                      placeholder="Ej. Boda en Oaxaca: Sofía & Mateo"
+                      className="w-full bg-[#181a1f] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-mono text-[10px] mb-1">
+                      Categoría
+                    </label>
+                    <select
+                      value={googlePhotosCategory}
+                      onChange={(e) => setGooglePhotosCategory(e.target.value)}
+                      className="w-full bg-[#181a1f] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                    >
+                      {categories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-mono text-[10px] mb-1">
+                      Ubicación
+                    </label>
+                    <input
+                      type="text"
+                      value={googlePhotosLocation}
+                      onChange={(e) => setGooglePhotosLocation(e.target.value)}
+                      placeholder="Ej. Oaxaca / CDMX"
+                      className="w-full bg-[#181a1f] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-mono text-[10px] mb-1">
+                      PIN de Descarga
+                    </label>
+                    <input
+                      type="text"
+                      value={googlePhotosDownloadPin}
+                      onChange={(e) => setGooglePhotosDownloadPin(e.target.value)}
+                      placeholder="8309"
+                      className="w-full bg-[#181a1f] border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Photos Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  {googlePhotosParsedList.map((photo, index) => (
+                    <div
+                      key={photo.id}
+                      className="relative rounded-lg overflow-hidden bg-zinc-900 border border-white/10 group aspect-square"
+                    >
+                      <img
+                        src={photo.thumbnailUrl || photo.url}
+                        alt={photo.title}
+                        className="w-full h-full object-cover"
+                      />
+                      {index === 0 && (
+                        <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded bg-amber-500 text-black font-mono text-[9px] uppercase font-bold shadow">
+                          Portada
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-2 text-center">
+                        <span className="text-[10px] text-white line-clamp-2">{photo.title}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 1-Click Publish Button */}
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={handleCreateGalleryFromGooglePhotos}
+                    className="px-8 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-xl shadow-amber-500/25 flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Crear y Publicar Colección en Lente Abierto MX</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -2235,6 +2583,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           {/* Sub-tabs */}
           <div className="flex flex-wrap items-center gap-2 border-b border-white/5 pb-4 text-xs font-mono uppercase tracking-wider">
             <button
+              onClick={() => setCmsSubTab('general')}
+              className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
+                cmsSubTab === 'general'
+                  ? 'bg-amber-500 text-black font-semibold shadow-md shadow-amber-500/20'
+                  : 'bg-white/5 text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Identidad, Título & Favicon</span>
+            </button>
+
+            <button
               onClick={() => setCmsSubTab('bio')}
               className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
                 cmsSubTab === 'bio'
@@ -2306,6 +2666,418 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <span>Instagram (@lente.abierto.mx)</span>
             </button>
           </div>
+
+          {/* SUBTAB 0: IDENTIDAD, TÍTULO, META SEO & FAVICON */}
+          {cmsSubTab === 'general' && (
+            <div className="space-y-6">
+              {/* Browser Preview Card */}
+              <div className="p-6 rounded-2xl bg-[#121316] border border-amber-500/20 space-y-4">
+                <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-5 h-5 text-amber-400" />
+                    <h4 className="font-editorial text-xl text-white font-medium">
+                      Vista Previa de la Pestaña del Navegador & SEO
+                    </h4>
+                  </div>
+                  <span className="text-[10px] uppercase font-mono px-2.5 py-1 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                    En Tiempo Real
+                  </span>
+                </div>
+
+                {/* Mock Browser Tab Bar */}
+                <div className="p-4 rounded-xl bg-black/60 border border-white/10 space-y-2">
+                  <span className="text-[10px] uppercase font-mono tracking-wider text-zinc-500 block">
+                    Así se ve tu sitio en Google Chrome / Safari / Edge:
+                  </span>
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-t-lg bg-[#242730] border-t border-x border-white/15 text-xs text-zinc-200 max-w-md shadow-lg">
+                    {cmsContent.general?.faviconUrl ? (
+                      <img
+                        src={cmsContent.general.faviconUrl}
+                        alt="Favicon"
+                        className="w-4 h-4 rounded object-cover shrink-0"
+                      />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-[10px] text-amber-400 shrink-0">
+                        📸
+                      </div>
+                    )}
+                    <span className="font-sans font-medium truncate">
+                      {cmsContent.general?.pageTitle || 'Lente Abierto MX | Fotografía de Autor'}
+                    </span>
+                    <span className="text-zinc-500 text-[10px] ml-1">✕</span>
+                  </div>
+                  <div className="h-1 bg-[#242730] rounded-b-lg"></div>
+                </div>
+
+                {/* Main Inputs: Page Title & Meta Description */}
+                <div className="space-y-4 pt-2">
+                  <div>
+                    <label className="block text-xs uppercase font-mono tracking-wider text-zinc-400 mb-1.5">
+                      Título de la Página Web (<code className="text-amber-400">&lt;title&gt;</code>) *
+                    </label>
+                    <input
+                      type="text"
+                      value={cmsContent.general?.pageTitle || ''}
+                      onChange={(e) =>
+                        setCmsContent({
+                          ...cmsContent,
+                          general: {
+                            ...(cmsContent.general || {
+                              pageTitle: '',
+                              pageDescription: '',
+                              brandName: 'Lente Abierto MX',
+                              brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                              faviconUrl: '',
+                              logoIconUrl: '',
+                            }),
+                            pageTitle: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="Ej. Lente Abierto MX | Fotografía de Autor & Bodas de Destino"
+                      className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-200 focus:outline-none focus:border-amber-500 font-sans"
+                    />
+                    <p className="text-[11px] text-zinc-500 mt-1">
+                      Es el texto que se lee en la pestaña del navegador y el título destacado en los resultados de Google.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs uppercase font-mono tracking-wider text-zinc-400 mb-1.5">
+                      Descripción de la Página (Meta SEO & Compartir en Redes) *
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={cmsContent.general?.pageDescription || ''}
+                      onChange={(e) =>
+                        setCmsContent({
+                          ...cmsContent,
+                          general: {
+                            ...(cmsContent.general || {
+                              pageTitle: '',
+                              pageDescription: '',
+                              brandName: 'Lente Abierto MX',
+                              brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                              faviconUrl: '',
+                              logoIconUrl: '',
+                            }),
+                            pageDescription: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="Ej. Portafolio oficial y entrega de galerías privadas para bodas, retratos de autor y eventos exclusivos en México..."
+                      className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-200 focus:outline-none focus:border-amber-500 resize-none font-sans"
+                    />
+                    <p className="text-[11px] text-zinc-500 mt-1">
+                      Este texto aparece debajo del título en Google y al compartir el link en WhatsApp, Facebook o Instagram.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Brand Name & Tagline */}
+              <div className="p-6 rounded-2xl bg-[#121316] border border-white/5 space-y-4">
+                <h4 className="font-editorial text-xl text-white font-medium border-b border-white/5 pb-3">
+                  Nombre de Marca & Lema del Encabezado
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs uppercase font-mono tracking-wider text-zinc-400 mb-1.5">
+                      Nombre de la Marca en Barra Superior
+                    </label>
+                    <input
+                      type="text"
+                      value={cmsContent.general?.brandName || ''}
+                      onChange={(e) =>
+                        setCmsContent({
+                          ...cmsContent,
+                          general: {
+                            ...(cmsContent.general || {
+                              pageTitle: '',
+                              pageDescription: '',
+                              brandName: 'Lente Abierto MX',
+                              brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                              faviconUrl: '',
+                              logoIconUrl: '',
+                            }),
+                            brandName: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="LENTE ABIERTO MX"
+                      className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-200 focus:outline-none focus:border-amber-500 tracking-wider font-editorial uppercase"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs uppercase font-mono tracking-wider text-zinc-400 mb-1.5">
+                      Lema / Bajada de Marca
+                    </label>
+                    <input
+                      type="text"
+                      value={cmsContent.general?.brandTagline || ''}
+                      onChange={(e) =>
+                        setCmsContent({
+                          ...cmsContent,
+                          general: {
+                            ...(cmsContent.general || {
+                              pageTitle: '',
+                              pageDescription: '',
+                              brandName: 'Lente Abierto MX',
+                              brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                              faviconUrl: '',
+                              logoIconUrl: '',
+                            }),
+                            brandTagline: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="FOTOGRAFÍA DE AUTOR · PIXIESET EDITION"
+                      className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-200 focus:outline-none focus:border-amber-500 uppercase tracking-widest font-mono text-[11px]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Favicon & Logo Customization */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 1. Favicon Card */}
+                <div className="p-6 rounded-2xl bg-[#121316] border border-white/5 space-y-4">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                    <h4 className="font-editorial text-lg text-white font-medium">
+                      Favicon (Ícono de Pestaña)
+                    </h4>
+                    <span className="text-[10px] font-mono text-zinc-500">ICO, PNG o SVG</span>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-2xl bg-[#181a1f] border border-white/10 flex items-center justify-center p-2 overflow-hidden shrink-0">
+                      {cmsContent.general?.faviconUrl ? (
+                        <img
+                          src={cmsContent.general.faviconUrl}
+                          alt="Favicon preview"
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 text-lg">
+                          📸
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2 flex-1">
+                      <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-semibold uppercase tracking-wider cursor-pointer transition-colors shadow">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Subir Archivo de Ícono</span>
+                        <input
+                          type="file"
+                          accept="image/png,image/x-icon,image/svg+xml,image/jpeg,image/webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (ev) => {
+                                const dataUrl = ev.target?.result as string;
+                                if (dataUrl) {
+                                  setCmsContent({
+                                    ...cmsContent,
+                                    general: {
+                                      ...(cmsContent.general || {
+                                        pageTitle: '',
+                                        pageDescription: '',
+                                        brandName: 'Lente Abierto MX',
+                                        brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                                        faviconUrl: '',
+                                        logoIconUrl: '',
+                                      }),
+                                      faviconUrl: dataUrl,
+                                    },
+                                  });
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+
+                      {cmsContent.general?.faviconUrl && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCmsContent({
+                              ...cmsContent,
+                              general: {
+                                ...(cmsContent.general || {
+                                  pageTitle: '',
+                                  pageDescription: '',
+                                  brandName: 'Lente Abierto MX',
+                                  brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                                  faviconUrl: '',
+                                  logoIconUrl: '',
+                                }),
+                                faviconUrl: '',
+                              },
+                            });
+                          }}
+                          className="block text-[11px] text-zinc-500 hover:text-red-400 transition-colors"
+                        >
+                          Restaurar favicon predeterminado
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] uppercase font-mono tracking-wider text-zinc-400 mb-1">
+                      O pega la URL directa de la imagen / favicon:
+                    </label>
+                    <input
+                      type="text"
+                      value={cmsContent.general?.faviconUrl || ''}
+                      onChange={(e) =>
+                        setCmsContent({
+                          ...cmsContent,
+                          general: {
+                            ...(cmsContent.general || {
+                              pageTitle: '',
+                              pageDescription: '',
+                              brandName: 'Lente Abierto MX',
+                              brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                              faviconUrl: '',
+                              logoIconUrl: '',
+                            }),
+                            faviconUrl: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="https://ejemplo.com/favicon.png"
+                      className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-amber-500 font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* 2. Logo Icon Card */}
+                <div className="p-6 rounded-2xl bg-[#121316] border border-white/5 space-y-4">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                    <h4 className="font-editorial text-lg text-white font-medium">
+                      Ícono / Logo del Encabezado
+                    </h4>
+                    <span className="text-[10px] font-mono text-zinc-500">PNG, SVG o JPG</span>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-2xl bg-[#181a1f] border border-white/10 flex items-center justify-center p-2 overflow-hidden shrink-0">
+                      {cmsContent.general?.logoIconUrl ? (
+                        <img
+                          src={cmsContent.general.logoIconUrl}
+                          alt="Logo preview"
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                          <ImageIcon className="w-5 h-5" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2 flex-1">
+                      <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-semibold uppercase tracking-wider cursor-pointer transition-colors shadow">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Subir Archivo de Logo</span>
+                        <input
+                          type="file"
+                          accept="image/png,image/svg+xml,image/jpeg,image/webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (ev) => {
+                                const dataUrl = ev.target?.result as string;
+                                if (dataUrl) {
+                                  setCmsContent({
+                                    ...cmsContent,
+                                    general: {
+                                      ...(cmsContent.general || {
+                                        pageTitle: '',
+                                        pageDescription: '',
+                                        brandName: 'Lente Abierto MX',
+                                        brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                                        faviconUrl: '',
+                                        logoIconUrl: '',
+                                      }),
+                                      logoIconUrl: dataUrl,
+                                    },
+                                  });
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+
+                      {cmsContent.general?.logoIconUrl && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCmsContent({
+                              ...cmsContent,
+                              general: {
+                                ...(cmsContent.general || {
+                                  pageTitle: '',
+                                  pageDescription: '',
+                                  brandName: 'Lente Abierto MX',
+                                  brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                                  faviconUrl: '',
+                                  logoIconUrl: '',
+                                }),
+                                logoIconUrl: '',
+                              },
+                            });
+                          }}
+                          className="block text-[11px] text-zinc-500 hover:text-red-400 transition-colors"
+                        >
+                          Restaurar ícono de cámara dorado
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] uppercase font-mono tracking-wider text-zinc-400 mb-1">
+                      O pega la URL directa del logotipo:
+                    </label>
+                    <input
+                      type="text"
+                      value={cmsContent.general?.logoIconUrl || ''}
+                      onChange={(e) =>
+                        setCmsContent({
+                          ...cmsContent,
+                          general: {
+                            ...(cmsContent.general || {
+                              pageTitle: '',
+                              pageDescription: '',
+                              brandName: 'Lente Abierto MX',
+                              brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                              faviconUrl: '',
+                              logoIconUrl: '',
+                            }),
+                            logoIconUrl: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="https://ejemplo.com/logo.png"
+                      className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-amber-500 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* SUBTAB 1: BIOGRAPHY */}
           {cmsSubTab === 'bio' && (
@@ -3685,6 +4457,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                 location: u.location || '',
                                 bio: u.bio || '',
                                 assignedGalleries: u.assignedGalleries || [],
+                                avatarUrl: u.avatarUrl || '',
                               });
                               setIsEditUserModalOpen(true);
                             }}
@@ -3767,6 +4540,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         location: newUserForm.location,
                         bio: newUserForm.bio,
                         assignedGalleries: newUserForm.assignedGalleries,
+                        avatarUrl: newUserForm.avatarUrl?.trim() || undefined,
                       });
                       setUserList(getStoredUsers());
                       setIsAddUserModalOpen(false);
@@ -3780,6 +4554,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         location: 'México',
                         bio: '',
                         assignedGalleries: [],
+                        avatarUrl: '',
                       });
                       setUserFeedback({
                         isError: false,
@@ -4007,6 +4782,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         location: editUserForm.location.trim(),
                         bio: editUserForm.bio.trim(),
                         assignedGalleries: editUserForm.assignedGalleries,
+                        avatarUrl: editUserForm.avatarUrl?.trim() || undefined,
                       });
 
                       setUserList(getStoredUsers());
@@ -4023,6 +4799,64 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   }}
                   className="space-y-4 text-xs"
                 >
+                  {/* Avatar section */}
+                  <div className="flex items-center gap-4 p-3 rounded-2xl bg-black/40 border border-white/5">
+                    <img
+                      src={
+                        editUserForm.avatarUrl ||
+                        editingUser.avatarUrl ||
+                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'
+                      }
+                      alt={editUserForm.name}
+                      className="w-14 h-14 rounded-full object-cover ring-2 ring-amber-500/40 shrink-0"
+                    />
+                    <div className="flex-1 space-y-1.5">
+                      <span className="block text-[10px] uppercase font-mono tracking-wider text-zinc-400">
+                        Foto de Perfil / Avatar
+                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-[11px] font-semibold uppercase tracking-wider cursor-pointer transition-colors shadow">
+                          <Upload className="w-3 h-3" />
+                          <span>Subir Foto</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = (ev) => {
+                                  const data = ev.target?.result as string;
+                                  if (data) {
+                                    setEditUserData({ ...editUserForm, avatarUrl: data });
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                        </label>
+                        {editUserForm.avatarUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setEditUserData({ ...editUserForm, avatarUrl: '' })}
+                            className="text-[10px] text-zinc-500 hover:text-red-400 font-mono"
+                          >
+                            Quitar foto
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        value={editUserForm.avatarUrl}
+                        onChange={(e) => setEditUserData({ ...editUserForm, avatarUrl: e.target.value })}
+                        placeholder="O pega URL de foto (https://...)"
+                        className="w-full bg-[#1c1e24] border border-zinc-700 rounded-lg px-2.5 py-1 text-[11px] text-white focus:outline-none focus:border-amber-500 font-mono"
+                      />
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-zinc-400 uppercase font-mono text-[10px] mb-1">

@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Catch-all safety
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Galleries: Read allowed for all visitors; write allowed for portfolio management
+    match /galleries/{galleryId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // Site Config (CMS)
+    match /siteConfig/{configId} {
+      allow read: if true;
+      allow create, update: if true;
+    }
+
+    // Client Inquiries / Cotizaciones
+    match /inquiries/{inquiryId} {
+      allow create: if true;
+      allow read, delete: if true;
+    }
+
+    // Download Audit Logs
+    match /downloadLogs/{logId} {
+      allow create: if true;
+      allow read, delete: if true;
+    }
+
+    // Favorites Audit Logs
+    match /favoriteLogs/{logId} {
+      allow create: if true;
+      allow read, delete: if true;
+    }
+
+    // User Profiles
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+  }
+}

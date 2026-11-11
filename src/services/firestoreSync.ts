@@ -258,3 +258,53 @@ export async function fetchInquiriesFromCloud(): Promise<BookingInquiry[]> {
     return [];
   }
 }
+
+// ----------------------------------------------------------------------
+// USER PROFILES CLOUD SYNC
+// ----------------------------------------------------------------------
+
+export async function saveUserToCloud(user: any): Promise<void> {
+  if (!db) return;
+  const path = `users/${user.id}`;
+  try {
+    await setDoc(doc(db, 'users', user.id), {
+      ...user,
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, path);
+  }
+}
+
+export async function deleteUserFromCloud(userId: string): Promise<void> {
+  if (!db) return;
+  const path = `users/${userId}`;
+  try {
+    await deleteDoc(doc(db, 'users', userId));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+  }
+}
+
+export function subscribeToUsers(
+  onUpdate: (users: any[]) => void
+) {
+  if (!db) return () => {};
+
+  const collRef = collection(db, 'users');
+  return onSnapshot(
+    collRef,
+    (snapshot) => {
+      if (snapshot.empty) return;
+      const users: any[] = [];
+      snapshot.forEach((docSnap) => {
+        users.push(docSnap.data());
+      });
+      onUpdate(users);
+    },
+    (err) => {
+      console.warn('Users cloud subscription error:', err);
+    }
+  );
+}
+

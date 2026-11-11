@@ -624,6 +624,14 @@ export function resetInstagramPosts(): InstagramPost[] {
 const STORAGE_KEY_SITE_CONTENT = 'lente_abierto_site_content_v1';
 
 export const DEFAULT_SITE_CONTENT: SiteContentConfig = {
+  general: {
+    pageTitle: 'Lente Abierto MX · Fotografía Editorial & Bodas de Destino',
+    pageDescription: 'Portafolio de fotografía de autor, bodas de destino, retrato editorial y arquitectura en México. Entrega digital de alta fidelidad estilo Pixieset.',
+    brandName: 'Lente Abierto MX',
+    brandTagline: 'Fotografía de Autor · Pixieset Edition',
+    faviconUrl: '',
+    logoIconUrl: '',
+  },
   hero: {
     badge: 'Colecciones & Galerías Privadas',
     title: 'Historias Capturadas en Luz Natural',

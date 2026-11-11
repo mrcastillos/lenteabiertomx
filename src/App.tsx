@@ -13,13 +13,14 @@ import { AdminAuthModal } from './components/AdminAuthModal';
 import { InstagramFeed } from './components/InstagramFeed';
 import { Gallery, UserProfile, SiteContentConfig } from './types';
 import { getStoredGalleries, saveGalleries, getFavorites, toggleFavorite, getStoredSiteContent, saveSiteContent } from './services/storage';
-import { getCurrentUser, setCurrentUser, logoutUser, isAdminLoggedIn, setAdminLoggedIn } from './services/userService';
+import { getCurrentUser, setCurrentUser, logoutUser, isAdminLoggedIn, setAdminLoggedIn, saveStoredUsers } from './services/userService';
 import { initAuth } from './services/firebase';
 import {
   subscribeToGalleries,
   saveGalleryToCloud,
   subscribeToSiteContent,
   saveSiteContentToCloud,
+  subscribeToUsers,
 } from './services/firestoreSync';
 
 export default function App() {
@@ -58,15 +59,24 @@ export default function App() {
       setSiteContent(cloudContent);
     });
 
+    // Subscribe to live users from Firestore
+    const unsubUsers = subscribeToUsers((cloudUsers) => {
+      if (cloudUsers && cloudUsers.length > 0) {
+        saveStoredUsers(cloudUsers);
+        const fresh = getCurrentUser();
+        if (fresh) setUser(fresh);
+      }
+    });
+
     // Initialize Firebase Auth listener
     const unsubAuth = initAuth(
       (fbUser) => {
-        // On Google Auth success
+        // On Google Auth success, preserve existing bio and details if already configured
         const current = getCurrentUser();
-        if (!current || current.email !== fbUser.email) {
+        if (!current || !current.email || current.email.toLowerCase() !== fbUser.email?.toLowerCase()) {
           const profile: UserProfile = {
             id: `usr-${fbUser.uid}`,
-            name: fbUser.displayName || 'Fotógrafo Lente Abierto',
+            name: fbUser.displayName || 'Martín Castillo',
             email: fbUser.email || '',
             role: 'fotografo',
             avatarUrl: fbUser.photoURL || undefined,
@@ -74,6 +84,10 @@ export default function App() {
           };
           setCurrentUser(profile);
           setUser(profile);
+        } else if (fbUser.photoURL && !current.avatarUrl) {
+          const updated = { ...current, avatarUrl: fbUser.photoURL };
+          setCurrentUser(updated);
+          setUser(updated);
         }
       },
       () => {
@@ -84,9 +98,33 @@ export default function App() {
     return () => {
       unsubGalleries();
       unsubContent();
+      unsubUsers();
       if (typeof unsubAuth === 'function') unsubAuth();
     };
   }, []);
+
+  // Dynamically update document title, meta description, and favicon from CMS
+  useEffect(() => {
+    if (siteContent?.general?.pageTitle) {
+      document.title = siteContent.general.pageTitle;
+    }
+    if (siteContent?.general?.pageDescription) {
+      const meta = document.querySelector('meta[name="description"]');
+      if (meta) {
+        meta.setAttribute('content', siteContent.general.pageDescription);
+      }
+    }
+    if (siteContent?.general?.faviconUrl) {
+      let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.type = 'image/x-icon';
+        link.rel = 'shortcut icon';
+        document.getElementsByTagName('head')[0].appendChild(link);
+      }
+      link.href = siteContent.general.faviconUrl;
+    }
+  }, [siteContent]);
 
   const handleSaveGalleries = async (newGalleries: Gallery[]) => {
     setGalleries(newGalleries);
@@ -171,6 +209,7 @@ export default function App() {
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
         announcement={siteContent.announcement}
+        generalConfig={siteContent.general}
       />
 
       {/* Main View Router */}

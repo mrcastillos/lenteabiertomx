@@ -1,4 +1,5 @@
 import { UserProfile } from '../types';
+import { saveUserToCloud, deleteUserFromCloud } from './firestoreSync';
 
 const STORAGE_KEY_USERS = 'lente_abierto_users_v2';
 const STORAGE_KEY_CURRENT_USER = 'lente_abierto_current_user_v2';
@@ -251,11 +252,17 @@ export function getCurrentUser(): UserProfile | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_CURRENT_USER);
     if (!raw) {
-      // Default to photographer logged in so the portfolio is immediately editable and functional!
-      localStorage.setItem(STORAGE_KEY_CURRENT_USER, JSON.stringify(DEFAULT_PHOTOGRAPHER_PROFILE));
-      return DEFAULT_PHOTOGRAPHER_PROFILE;
+      const users = getStoredUsers();
+      const first = users[0] || DEFAULT_PHOTOGRAPHER_PROFILE;
+      localStorage.setItem(STORAGE_KEY_CURRENT_USER, JSON.stringify(first));
+      return first;
     }
-    return JSON.parse(raw);
+    const current = JSON.parse(raw);
+    const users = getStoredUsers();
+    const fresh = users.find(
+      (u) => u.id === current.id || (u.email && current.email && u.email.toLowerCase() === current.email.toLowerCase())
+    );
+    return fresh || current;
   } catch {
     return DEFAULT_PHOTOGRAPHER_PROFILE;
   }
@@ -327,6 +334,7 @@ export function addUser(data: {
 
   const updated = [...users, newUser];
   saveStoredUsers(updated);
+  saveUserToCloud(newUser).catch(() => {});
   return newUser;
 }
 
@@ -348,6 +356,7 @@ export function deleteUser(id: string): { success: boolean; message: string } {
   }
 
   saveStoredUsers(filtered);
+  deleteUserFromCloud(id).catch(() => {});
 
   // If deleting currently logged in user, logout
   const current = getCurrentUser();
@@ -413,9 +422,18 @@ export function updateUserProfile(id: string, updates: Partial<UserProfile>): Us
     throw new Error('Usuario no encontrado');
   }
 
-  const updated = { ...users[index], ...updates };
+  const updated: UserProfile = { ...users[index], ...updates };
   users[index] = updated;
   localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+
+  // If this user is currently active or has matching email, update current session too
+  const current = getCurrentUser();
+  if (current && (current.id === id || (current.email && updated.email && current.email.toLowerCase() === updated.email.toLowerCase()))) {
+    setCurrentUser(updated);
+  }
+
+  // Sync to Cloud Firestore
+  saveUserToCloud(updated).catch(() => {});
 
   return updated;
 }
