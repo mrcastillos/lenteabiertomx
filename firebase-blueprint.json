@@ -80,6 +80,25 @@
         "timestamp": { "type": "string" }
       },
       "required": ["id", "photoId", "galleryId", "clientEmail"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with biography, contact and credentials",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "phone": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "instagram": { "type": "string" },
+        "location": { "type": "string" },
+        "bio": { "type": "string" },
+        "detailedBio": { "type": "string" },
+        "avatarUrl": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "role"]
     }
   },
   "firestore": {
@@ -102,6 +121,10 @@
     "/favoriteLogs/{logId}": {
       "schema": "FavoriteLog",
       "description": "Audit log of favorited photos"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles and credentials"
     }
   }
 }
