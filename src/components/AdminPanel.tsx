@@ -79,7 +79,13 @@ import {
   clearFavoriteLogs,
   removeFavoriteLog,
 } from '../services/storage';
-import { deleteGalleryFromCloud, saveGalleryToCloud } from '../services/firestoreSync';
+import {
+  deleteGalleryFromCloud,
+  saveGalleryToCloud,
+  subscribeToUsers,
+  syncAllUsersToCloud,
+} from '../services/firestoreSync';
+import { resizeImageToDataUrl } from '../utils/imageCompressor';
 import {
   getStoredAdminCredentials,
   saveAdminCredentials,
@@ -99,7 +105,7 @@ interface AdminPanelProps {
   onPreviewGallery: (gallery: Gallery) => void;
   onLockAdmin?: () => void;
   siteContent?: SiteContentConfig;
-  onSaveSiteContent?: (content: SiteContentConfig) => void;
+  onSaveSiteContent?: (content: SiteContentConfig) => Promise<void> | void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -116,6 +122,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const [cmsContent, setCmsContent] = useState<SiteContentConfig>(siteContent || getStoredSiteContent());
   const [cmsSaveSuccess, setCmsSaveSuccess] = useState(false);
+  const [isSavingCms, setIsSavingCms] = useState(false);
+  const [cmsSaveError, setCmsSaveError] = useState<string | null>(null);
+  const [isSyncingUsersCloud, setIsSyncingUsersCloud] = useState(false);
+  const [usersSyncFeedback, setUsersSyncFeedback] = useState<string | null>(null);
   const [cmsSubTab, setCmsSubTab] = useState<'general' | 'bio' | 'hero' | 'contact' | 'pricing' | 'announcement' | 'instagram'>('general');
 
   // Download Logs State
@@ -216,6 +226,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setAdminCreds(getStoredAdminCredentials());
     setDownloadLogs(getStoredDownloadLogs());
     setFavoriteLogs(getStoredFavoriteLogs());
+
+    const unsubUsers = subscribeToUsers((cloudUsers) => {
+      if (cloudUsers && cloudUsers.length > 0) {
+        setUserList(cloudUsers);
+      }
+    });
+
+    return () => {
+      unsubUsers();
+    };
   }, []);
 
   useEffect(() => {
@@ -2547,7 +2567,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
+              {cmsSaveError && (
+                <div className="px-3.5 py-2 rounded-xl bg-red-950/60 border border-red-500/40 text-red-300 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                  <span>{cmsSaveError}</span>
+                </div>
+              )}
+
               <button
                 type="button"
                 onClick={() => {
@@ -2566,16 +2593,40 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               <button
                 type="button"
-                onClick={() => {
-                  saveSiteContent(cmsContent);
-                  if (onSaveSiteContent) onSaveSiteContent(cmsContent);
-                  setCmsSaveSuccess(true);
-                  setTimeout(() => setCmsSaveSuccess(false), 3000);
+                disabled={isSavingCms}
+                onClick={async () => {
+                  setIsSavingCms(true);
+                  setCmsSaveError(null);
+                  try {
+                    saveSiteContent(cmsContent);
+                    if (onSaveSiteContent) {
+                      await onSaveSiteContent(cmsContent);
+                    }
+                    setCmsSaveSuccess(true);
+                    setTimeout(() => setCmsSaveSuccess(false), 3500);
+                  } catch (err: any) {
+                    console.error('Error saving CMS:', err);
+                    setCmsSaveError(err?.message || 'Error al guardar en la nube.');
+                  } finally {
+                    setIsSavingCms(false);
+                  }
                 }}
-                className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2"
+                className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2 disabled:opacity-50"
               >
-                {cmsSaveSuccess ? <Check className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
-                <span>{cmsSaveSuccess ? '¡Guardado con Éxito!' : 'Guardar Cambios del Sitio'}</span>
+                {isSavingCms ? (
+                  <RefreshCw className="w-4 h-4 animate-spin text-black" />
+                ) : cmsSaveSuccess ? (
+                  <Check className="w-4 h-4 text-black" />
+                ) : (
+                  <Sparkles className="w-4 h-4 text-black" />
+                )}
+                <span>
+                  {isSavingCms
+                    ? 'Sincronizando con Firestore...'
+                    : cmsSaveSuccess
+                    ? '¡Guardado y Sincronizado en la Nube!'
+                    : 'Guardar Cambios del Sitio'}
+                </span>
               </button>
             </div>
           </div>
@@ -4070,19 +4121,49 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           )}
 
           {/* Bottom Save Bar */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/5">
+          <div className="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-3 pt-4 border-t border-white/5">
+            {cmsSaveError && (
+              <div className="px-3.5 py-2 rounded-xl bg-red-950/60 border border-red-500/40 text-red-300 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                <span>{cmsSaveError}</span>
+              </div>
+            )}
             <button
               type="button"
-              onClick={() => {
-                saveSiteContent(cmsContent);
-                if (onSaveSiteContent) onSaveSiteContent(cmsContent);
-                setCmsSaveSuccess(true);
-                setTimeout(() => setCmsSaveSuccess(false), 3000);
+              disabled={isSavingCms}
+              onClick={async () => {
+                setIsSavingCms(true);
+                setCmsSaveError(null);
+                try {
+                  saveSiteContent(cmsContent);
+                  if (onSaveSiteContent) {
+                    await onSaveSiteContent(cmsContent);
+                  }
+                  setCmsSaveSuccess(true);
+                  setTimeout(() => setCmsSaveSuccess(false), 3500);
+                } catch (err: any) {
+                  console.error('Error saving CMS:', err);
+                  setCmsSaveError(err?.message || 'Error al guardar en la nube.');
+                } finally {
+                  setIsSavingCms(false);
+                }
               }}
-              className="px-8 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2"
+              className="px-8 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2 disabled:opacity-50"
             >
-              {cmsSaveSuccess ? <Check className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
-              <span>{cmsSaveSuccess ? '¡Cambios Guardados!' : 'Guardar Todo el Contenido del Sitio'}</span>
+              {isSavingCms ? (
+                <RefreshCw className="w-4 h-4 animate-spin text-black" />
+              ) : cmsSaveSuccess ? (
+                <Check className="w-4 h-4 text-black" />
+              ) : (
+                <Sparkles className="w-4 h-4 text-black" />
+              )}
+              <span>
+                {isSavingCms
+                  ? 'Sincronizando con Firestore...'
+                  : cmsSaveSuccess
+                  ? '¡Guardado y Sincronizado en la Nube!'
+                  : 'Guardar Todo el Contenido del Sitio'}
+              </span>
             </button>
           </div>
         </div>
@@ -4291,14 +4372,43 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setIsAddUserModalOpen(true)}
-                className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span>+ Agregar Colaborador / Usuario</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  disabled={isSyncingUsersCloud}
+                  onClick={async () => {
+                    setIsSyncingUsersCloud(true);
+                    try {
+                      await syncAllUsersToCloud(userList);
+                      setUserFeedback({
+                        isError: false,
+                        message: '¡Todos los perfiles de usuario han sido sincronizados y respaldados en la base de datos Firestore!',
+                      });
+                      setTimeout(() => setUserFeedback(null), 4000);
+                    } catch (err: any) {
+                      setUserFeedback({
+                        isError: true,
+                        message: `Error al sincronizar usuarios con Firestore: ${err?.message || err}`,
+                      });
+                    } finally {
+                      setIsSyncingUsersCloud(false);
+                    }
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white border border-white/10 font-semibold text-xs tracking-wider uppercase flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isSyncingUsersCloud ? 'animate-spin text-amber-400' : 'text-zinc-400'}`} />
+                  <span>{isSyncingUsersCloud ? 'Sincronizando...' : 'Sincronizar Usuarios con BD'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsAddUserModalOpen(true)}
+                  className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>+ Agregar Colaborador / Usuario</span>
+                </button>
+              </div>
             </div>
 
             {userFeedback && (
@@ -4673,6 +4783,56 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     />
                   </div>
 
+                  {/* Avatar Upload for New User */}
+                  <div className="flex items-center gap-4 p-3 rounded-2xl bg-black/40 border border-white/5">
+                    <img
+                      src={
+                        newUserForm.avatarUrl ||
+                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'
+                      }
+                      alt="Avatar"
+                      className="w-12 h-12 rounded-full object-cover ring-2 ring-amber-500/40 shrink-0"
+                    />
+                    <div className="flex-1 space-y-1">
+                      <span className="block text-[10px] uppercase font-mono tracking-wider text-zinc-400">
+                        Foto de Perfil / Avatar (Opcional)
+                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-[11px] font-semibold uppercase tracking-wider cursor-pointer transition-colors shadow">
+                          <Upload className="w-3 h-3" />
+                          <span>Subir Foto</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                try {
+                                  const data = await resizeImageToDataUrl(file, 256, 256, 0.85);
+                                  if (data) {
+                                    setNewUserData({ ...newUserForm, avatarUrl: data });
+                                  }
+                                } catch (err) {
+                                  console.error('Error compressing new user avatar:', err);
+                                }
+                              }
+                            }}
+                          />
+                        </label>
+                        {newUserForm.avatarUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setNewUserData({ ...newUserForm, avatarUrl: '' })}
+                            className="text-[10px] text-zinc-500 hover:text-red-400 font-mono"
+                          >
+                            Quitar foto
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Assigned Galleries checkboxes */}
                   <div>
                     <label className="block text-zinc-400 uppercase font-mono text-[10px] mb-1.5">
@@ -4822,17 +4982,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             type="file"
                             accept="image/*"
                             className="hidden"
-                            onChange={(e) => {
+                            onChange={async (e) => {
                               const file = e.target.files?.[0];
                               if (file) {
-                                const reader = new FileReader();
-                                reader.onload = (ev) => {
-                                  const data = ev.target?.result as string;
+                                try {
+                                  const data = await resizeImageToDataUrl(file, 256, 256, 0.85);
                                   if (data) {
                                     setEditUserData({ ...editUserForm, avatarUrl: data });
                                   }
-                                };
-                                reader.readAsDataURL(file);
+                                } catch (err) {
+                                  console.error('Error compressing user avatar:', err);
+                                }
                               }
                             }}
                           />

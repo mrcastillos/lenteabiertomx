@@ -1,5 +1,5 @@
 import { Gallery, BookingInquiry, SiteContentConfig, InstagramPost, DownloadLog, FavoriteLog } from '../types';
-import { saveDownloadLogToCloud, saveFavoriteLogToCloud, saveInquiryToCloud } from './firestoreSync';
+import { saveDownloadLogToCloud, saveFavoriteLogToCloud, saveInquiryToCloud, saveSiteContentToCloud } from './firestoreSync';
 
 const STORAGE_KEY_GALLERIES = 'lente_abierto_galleries_v2';
 const STORAGE_KEY_INQUIRIES = 'lente_abierto_inquiries_v2';
@@ -766,6 +766,9 @@ export function getStoredSiteContent(): SiteContentConfig {
 export function saveSiteContent(content: SiteContentConfig): void {
   try {
     localStorage.setItem(STORAGE_KEY_SITE_CONTENT, JSON.stringify(content));
+    saveSiteContentToCloud(content).catch((e) => {
+      console.warn('Background site content sync to cloud failed:', e);
+    });
   } catch (e) {
     console.error('Error saving site content', e);
   }
@@ -774,6 +777,7 @@ export function saveSiteContent(content: SiteContentConfig): void {
 export function resetSiteContent(): SiteContentConfig {
   try {
     localStorage.setItem(STORAGE_KEY_SITE_CONTENT, JSON.stringify(DEFAULT_SITE_CONTENT));
+    saveSiteContentToCloud(DEFAULT_SITE_CONTENT).catch(() => {});
   } catch (e) {
     console.error('Error resetting site content', e);
   }

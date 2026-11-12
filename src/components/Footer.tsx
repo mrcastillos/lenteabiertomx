@@ -8,6 +8,7 @@ interface FooterProps {
   onOpenAdminAuth: () => void;
   isAdmin: boolean;
   contactConfig?: SiteContentConfig['contact'];
+  generalConfig?: SiteContentConfig['general'];
 }
 
 export const Footer: React.FC<FooterProps> = ({
@@ -15,6 +16,7 @@ export const Footer: React.FC<FooterProps> = ({
   onOpenAdminAuth,
   isAdmin,
   contactConfig = DEFAULT_SITE_CONTENT.contact,
+  generalConfig,
 }) => {
   const contact = contactConfig || DEFAULT_SITE_CONTENT.contact;
   const whatsappNumber = (contact.whatsapp || contact.phone || '527773743420').replace(/[^0-9]/g, '');
@@ -28,11 +30,15 @@ export const Footer: React.FC<FooterProps> = ({
           {/* Brand Col */}
           <div className="md:col-span-2 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full border border-amber-400/40 flex items-center justify-center bg-amber-400/10">
-                <Camera className="w-4 h-4 text-amber-400" />
+              <div className="w-8 h-8 rounded-full border border-amber-400/40 flex items-center justify-center bg-amber-400/10 overflow-hidden">
+                {generalConfig?.logoIconUrl ? (
+                  <img src={generalConfig.logoIconUrl} alt="Logo" className="w-full h-full object-cover" />
+                ) : (
+                  <Camera className="w-4 h-4 text-amber-400" />
+                )}
               </div>
               <span className="font-editorial text-2xl tracking-[0.2em] font-medium text-white uppercase">
-                Lente Abierto MX
+                {generalConfig?.brandName || 'Lente Abierto MX'}
               </span>
             </div>
             <p className="text-zinc-400 font-light leading-relaxed max-w-md text-sm">

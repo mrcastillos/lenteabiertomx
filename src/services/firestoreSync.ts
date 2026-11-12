@@ -6,12 +6,11 @@ import {
   setDoc,
   deleteDoc,
   onSnapshot,
-  query,
-  orderBy,
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { Gallery, SiteContentConfig, DownloadLog, FavoriteLog, BookingInquiry } from '../types';
+import { Gallery, SiteContentConfig, DownloadLog, FavoriteLog, BookingInquiry, UserProfile } from '../types';
 import { INITIAL_GALLERIES, DEFAULT_SITE_CONTENT } from './storage';
+import { DEFAULT_PHOTOGRAPHER_PROFILE } from './userService';
 
 export enum OperationType {
   CREATE = 'create',
@@ -61,6 +60,17 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
+/**
+ * Strips all undefined fields from objects before sending to Firestore.
+ * Firestore strictly throws errors when fields are undefined.
+ */
+export function sanitizePayload<T>(obj: T): any {
+  if (!obj) return obj;
+  return JSON.parse(
+    JSON.stringify(obj, (_key, value) => (value === undefined ? null : value))
+  );
+}
+
 // ----------------------------------------------------------------------
 // GALLERIES CLOUD SYNC
 // ----------------------------------------------------------------------
@@ -80,10 +90,9 @@ export function subscribeToGalleries(
     async (snapshot) => {
       try {
         if (snapshot.empty) {
-          // Auto-seed initial galleries to Firestore on very first launch
           console.log('Seeding initial galleries into Firestore...');
           for (const g of INITIAL_GALLERIES) {
-            await setDoc(doc(db, 'galleries', g.id), g);
+            await setDoc(doc(db, 'galleries', g.id), sanitizePayload(g));
           }
           onUpdate(INITIAL_GALLERIES);
           return;
@@ -121,10 +130,11 @@ export async function saveGalleryToCloud(gallery: Gallery): Promise<void> {
   if (!db) return;
   const path = `galleries/${gallery.id}`;
   try {
-    await setDoc(doc(db, 'galleries', gallery.id), {
+    const payload = sanitizePayload({
       ...gallery,
       updatedAt: new Date().toISOString(),
     });
+    await setDoc(doc(db, 'galleries', gallery.id), payload);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);
   }
@@ -155,12 +165,19 @@ export function subscribeToSiteContent(
     async (docSnap) => {
       if (!docSnap.exists()) {
         try {
-          await setDoc(docRef, { ...DEFAULT_SITE_CONTENT, id: 'main' });
-        } catch {}
+          const initial = sanitizePayload({ ...DEFAULT_SITE_CONTENT, id: 'main' });
+          await setDoc(docRef, initial);
+        } catch (e) {
+          console.warn('Error auto-seeding siteConfig:', e);
+        }
         onUpdate(DEFAULT_SITE_CONTENT);
         return;
       }
       const data = docSnap.data() as SiteContentConfig;
+      // Sync local cache so other tabs/reloads on this device stay in sync
+      try {
+        localStorage.setItem('lente_abierto_site_content_v2', JSON.stringify(data));
+      } catch {}
       onUpdate(data);
     },
     (err) => {
@@ -173,11 +190,15 @@ export async function saveSiteContentToCloud(content: SiteContentConfig): Promis
   if (!db) return;
   const path = 'siteConfig/main';
   try {
-    await setDoc(doc(db, 'siteConfig', 'main'), {
+    const payload = sanitizePayload({
       ...content,
       id: 'main',
       updatedAt: new Date().toISOString(),
     });
+    await setDoc(doc(db, 'siteConfig', 'main'), payload);
+    try {
+      localStorage.setItem('lente_abierto_site_content_v2', JSON.stringify(content));
+    } catch {}
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);
   }
@@ -191,7 +212,7 @@ export async function saveDownloadLogToCloud(log: DownloadLog): Promise<void> {
   if (!db) return;
   const path = `downloadLogs/${log.id}`;
   try {
-    await setDoc(doc(db, 'downloadLogs', log.id), log);
+    await setDoc(doc(db, 'downloadLogs', log.id), sanitizePayload(log));
   } catch (err) {
     handleFirestoreError(err, OperationType.CREATE, path);
   }
@@ -215,7 +236,7 @@ export async function saveFavoriteLogToCloud(log: FavoriteLog): Promise<void> {
   if (!db) return;
   const path = `favoriteLogs/${log.id}`;
   try {
-    await setDoc(doc(db, 'favoriteLogs', log.id), log);
+    await setDoc(doc(db, 'favoriteLogs', log.id), sanitizePayload(log));
   } catch (err) {
     handleFirestoreError(err, OperationType.CREATE, path);
   }
@@ -239,7 +260,7 @@ export async function saveInquiryToCloud(inquiry: BookingInquiry): Promise<void>
   if (!db) return;
   const path = `inquiries/${inquiry.id}`;
   try {
-    await setDoc(doc(db, 'inquiries', inquiry.id), inquiry);
+    await setDoc(doc(db, 'inquiries', inquiry.id), sanitizePayload(inquiry));
   } catch (err) {
     handleFirestoreError(err, OperationType.CREATE, path);
   }
@@ -263,14 +284,15 @@ export async function fetchInquiriesFromCloud(): Promise<BookingInquiry[]> {
 // USER PROFILES CLOUD SYNC
 // ----------------------------------------------------------------------
 
-export async function saveUserToCloud(user: any): Promise<void> {
+export async function saveUserToCloud(user: UserProfile): Promise<void> {
   if (!db) return;
   const path = `users/${user.id}`;
   try {
-    await setDoc(doc(db, 'users', user.id), {
+    const payload = sanitizePayload({
       ...user,
       updatedAt: new Date().toISOString(),
     });
+    await setDoc(doc(db, 'users', user.id), payload);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);
   }
@@ -286,25 +308,51 @@ export async function deleteUserFromCloud(userId: string): Promise<void> {
   }
 }
 
+export async function syncAllUsersToCloud(users: UserProfile[]): Promise<void> {
+  if (!db || !users || users.length === 0) return;
+  for (const u of users) {
+    try {
+      await saveUserToCloud(u);
+    } catch (e) {
+      console.warn(`Could not sync user ${u.id} to cloud:`, e);
+    }
+  }
+}
+
 export function subscribeToUsers(
-  onUpdate: (users: any[]) => void
+  onUpdate: (users: UserProfile[]) => void
 ) {
   if (!db) return () => {};
 
   const collRef = collection(db, 'users');
   return onSnapshot(
     collRef,
-    (snapshot) => {
-      if (snapshot.empty) return;
-      const users: any[] = [];
-      snapshot.forEach((docSnap) => {
-        users.push(docSnap.data());
-      });
-      onUpdate(users);
+    async (snapshot) => {
+      try {
+        if (snapshot.empty) {
+          console.log('Seeding default photographer profile to Firestore...');
+          const initialUser = sanitizePayload(DEFAULT_PHOTOGRAPHER_PROFILE);
+          await setDoc(doc(db, 'users', initialUser.id), initialUser);
+          onUpdate([DEFAULT_PHOTOGRAPHER_PROFILE]);
+          return;
+        }
+
+        const users: UserProfile[] = [];
+        snapshot.forEach((docSnap) => {
+          users.push(docSnap.data() as UserProfile);
+        });
+
+        try {
+          localStorage.setItem('lente_abierto_users_v2', JSON.stringify(users));
+        } catch {}
+
+        onUpdate(users);
+      } catch (err) {
+        console.warn('Error in users snapshot processing:', err);
+      }
     },
     (err) => {
       console.warn('Users cloud subscription error:', err);
     }
   );
 }
-

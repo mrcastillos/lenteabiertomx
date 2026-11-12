@@ -150,6 +150,7 @@ export default function App() {
       await saveSiteContentToCloud(updated);
     } catch (e) {
       console.error('Error saving site content to cloud:', e);
+      throw e;
     }
   };
 
@@ -320,6 +321,7 @@ export default function App() {
         onOpenAdminAuth={() => setIsAdminAuthModalOpen(true)}
         isAdmin={isAdmin}
         contactConfig={siteContent.contact}
+        generalConfig={siteContent.general}
       />
 
       {/* User Auth Modal (Login / Register / Google) */}
