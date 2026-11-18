@@ -675,6 +675,8 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
         photoTitle={downloadTargetPhoto?.title}
         actionType={pinActionType}
         onSuccess={handlePinSuccess}
+        logoUrl={brandLogoUrl}
+        brandName={brandName}
       />
 
       {/* Client Favorites Tracking Modal */}

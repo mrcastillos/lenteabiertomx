@@ -120,13 +120,14 @@ export const BiographyPage: React.FC<BiographyPageProps> = ({
           <div className="max-w-3xl mb-8">
             <div className="flex items-center gap-2 text-amber-400 text-xs uppercase tracking-widest mb-2 font-mono">
               <Camera className="w-4 h-4" />
-              <span>Equipo & Tecnologías de Alta Gama</span>
+              <span>{bio.gearSectionBadge || 'Equipo & Tecnologías de Alta Gama'}</span>
             </div>
             <h2 className="font-editorial text-3xl sm:text-4xl text-white font-normal mb-3">
-              Garantía Técnica para Entregas de Máxima Calidad
+              {bio.gearSectionTitle || 'Garantía Técnica para Entregas de Máxima Calidad'}
             </h2>
             <p className="text-xs sm:text-sm text-zinc-400 font-light leading-relaxed">
-              Para garantizar nitidez de galería, rango dinámico extendido y seguridad total en eventos irrepetibles, trabajamos exclusivamente con doble ranura de memoria en vivo y equipos insignia.
+              {bio.gearSectionSubtitle ||
+                'Para garantizar nitidez de galería, rango dinámico extendido y seguridad total en eventos irrepetibles, trabajamos exclusivamente con doble ranura de memoria en vivo y equipos insignia.'}
             </p>
           </div>
 
@@ -135,9 +136,11 @@ export const BiographyPage: React.FC<BiographyPageProps> = ({
               <div key={idx} className="p-5 rounded-xl bg-black/40 border border-white/5">
                 <h4 className="text-xs uppercase font-mono tracking-wider text-amber-400 mb-2">{g.title}</h4>
                 <ul className="text-xs text-zinc-300 space-y-1.5 font-light">
-                  {g.items.map((it, itemIdx) => (
-                    <li key={itemIdx}>• {it}</li>
-                  ))}
+                  {(g.items || [])
+                    .filter((it) => it && it.trim().length > 0)
+                    .map((it, itemIdx) => (
+                      <li key={itemIdx}>• {it.trim()}</li>
+                    ))}
                 </ul>
               </div>
             ))}

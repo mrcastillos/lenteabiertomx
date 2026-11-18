@@ -639,6 +639,9 @@ export const DEFAULT_SITE_CONTENT: SiteContentConfig = {
     brandTagline: 'Fotografía de Autor · Pixieset Edition',
     faviconUrl: '',
     logoIconUrl: '',
+    footerDescription:
+      'Plataforma de portafolio y entrega de galerías fotográficas de alta fidelidad estilo Pixieset. Capturando la luz, arquitectura y autenticidad del México contemporáneo con respeto visual y técnica editorial.',
+    footerSecurityText: 'Descargas seguras protegidas con PIN & Marcas de agua',
   },
   hero: {
     badge: 'Colecciones & Galerías Privadas',
@@ -685,6 +688,10 @@ export const DEFAULT_SITE_CONTENT: SiteContentConfig = {
           'Rechazamos modas cromáticas pasajeras o tonos artificiales. Nuestro revelado digital respeta los tonos de piel naturales y los colores vivos de las flores, las canteras y los cielos mexicanos para que tu álbum luzca vigente en 30 años.',
       },
     ],
+    gearSectionBadge: 'Equipo & Tecnologías de Alta Gama',
+    gearSectionTitle: 'Garantía Técnica para Entregas de Máxima Calidad',
+    gearSectionSubtitle:
+      'Para garantizar nitidez de galería, rango dinámico extendido y seguridad total en eventos irrepetibles, trabajamos exclusivamente con doble ranura de memoria en vivo y equipos insignia.',
     gear: [
       {
         title: 'Cuerpos de Cámara',

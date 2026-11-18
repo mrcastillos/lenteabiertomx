@@ -29,6 +29,8 @@ interface PinModalProps {
   photoTitle?: string;
   actionType: 'single' | 'full';
   onSuccess: () => void;
+  logoUrl?: string;
+  brandName?: string;
 }
 
 export const PinModal: React.FC<PinModalProps> = ({
@@ -41,6 +43,8 @@ export const PinModal: React.FC<PinModalProps> = ({
   photoTitle,
   actionType,
   onSuccess,
+  logoUrl,
+  brandName,
 }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -156,8 +160,10 @@ export const PinModal: React.FC<PinModalProps> = ({
 
         <div className="p-6 sm:p-8">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-              {actionType === 'full' ? (
+            <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 overflow-hidden">
+              {logoUrl ? (
+                <img src={logoUrl} alt={brandName || 'Logo'} className="w-full h-full object-cover" />
+              ) : actionType === 'full' ? (
                 <FileArchive className="w-6 h-6" />
               ) : (
                 <Camera className="w-6 h-6" />
@@ -343,7 +349,7 @@ export const PinModal: React.FC<PinModalProps> = ({
 
           <div className="mt-5 pt-4 border-t border-zinc-800 text-[11px] text-zinc-500 flex items-center justify-center gap-1.5">
             <Lock className="w-3.5 h-3.5 text-zinc-500" />
-            <span>Lente Abierto MX © Entrega certificada y resguardada</span>
+            <span>{brandName || 'Lente Abierto MX'} © Entrega certificada y resguardada</span>
           </div>
         </div>
       </div>

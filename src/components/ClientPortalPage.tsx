@@ -7,11 +7,15 @@ interface ClientPortalPageProps {
   galleries: Gallery[];
   onSelectGallery: (gallery: Gallery) => void;
   favorites: string[];
+  logoUrl?: string;
+  brandName?: string;
 }
 
 export const ClientPortalPage: React.FC<ClientPortalPageProps> = ({
   galleries,
   onSelectGallery,
+  logoUrl,
+  brandName,
 }) => {
   const [pinInput, setPinInput] = useState('');
   const [error, setError] = useState(false);
@@ -59,14 +63,18 @@ export const ClientPortalPage: React.FC<ClientPortalPageProps> = ({
     <div className="max-w-4xl mx-auto px-4 sm:px-8 py-16 sm:py-24 text-zinc-200">
       {/* Header */}
       <div className="text-center max-w-xl mx-auto mb-10 space-y-3">
-        <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto shadow-lg shadow-amber-950/20">
-          <Lock className="w-6 h-6" />
+        <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto shadow-lg shadow-amber-950/20 overflow-hidden">
+          {logoUrl ? (
+            <img src={logoUrl} alt={brandName || 'Logo'} className="w-full h-full object-cover" />
+          ) : (
+            <Lock className="w-6 h-6" />
+          )}
         </div>
         <h1 className="font-editorial text-4xl sm:text-5xl text-white font-normal leading-tight">
           Portal Privado de Clientes
         </h1>
         <p className="text-xs sm:text-sm text-zinc-400 font-light leading-relaxed">
-          Ingresa la clave PIN privada o el código exclusivo asignado por <span className="text-zinc-200 font-medium">Lente Abierto MX</span> para acceder a tu colección fotográfica.
+          Ingresa la clave PIN privada o el código exclusivo asignado por <span className="text-zinc-200 font-medium">{brandName || 'Lente Abierto MX'}</span> para acceder a tu colección fotográfica.
         </p>
       </div>
 

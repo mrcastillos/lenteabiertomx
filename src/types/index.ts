@@ -169,6 +169,8 @@ export interface SiteContentConfig {
     brandTagline: string;
     faviconUrl?: string;
     logoIconUrl?: string;
+    footerDescription?: string;
+    footerSecurityText?: string;
   };
   hero: {
     badge: string;
@@ -193,6 +195,9 @@ export interface SiteContentConfig {
     locationText: string;
     badges: string[];
     principles: SitePrinciple[];
+    gearSectionBadge?: string;
+    gearSectionTitle?: string;
+    gearSectionSubtitle?: string;
     gear: GearSection[];
     publications: string[];
   };

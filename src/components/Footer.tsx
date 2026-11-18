@@ -42,8 +42,8 @@ export const Footer: React.FC<FooterProps> = ({
               </span>
             </div>
             <p className="text-zinc-400 font-light leading-relaxed max-w-md text-sm">
-              Plataforma de portafolio y entrega de galerías fotográficas de alta fidelidad estilo Pixieset.
-              Capturando la luz, arquitectura y autenticidad del México contemporáneo con respeto visual y técnica editorial.
+              {generalConfig?.footerDescription ||
+                'Plataforma de portafolio y entrega de galerías fotográficas de alta fidelidad estilo Pixieset. Capturando la luz, arquitectura y autenticidad del México contemporáneo con respeto visual y técnica editorial.'}
             </p>
             <div className="flex items-center gap-4 pt-2 text-zinc-300">
               <a
@@ -88,18 +88,18 @@ export const Footer: React.FC<FooterProps> = ({
             <ul className="space-y-2 text-zinc-400 text-xs tracking-wider uppercase">
               <li>
                 <button
-                  onClick={() => onSelectTab('galleries')}
-                  className="hover:text-amber-400 transition-colors"
-                >
-                  Todas las Galerías
-                </button>
-              </li>
-              <li>
-                <button
                   onClick={() => onSelectTab('biography')}
                   className="hover:text-amber-400 transition-colors"
                 >
                   Biografía & Filosofía
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onSelectTab('galleries')}
+                  className="hover:text-amber-400 transition-colors"
+                >
+                  Todas las Galerías
                 </button>
               </li>
               <li>
@@ -146,18 +146,18 @@ export const Footer: React.FC<FooterProps> = ({
             <div className="space-y-2 text-xs text-zinc-400">
               <p className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                <span>Roma Norte, CDMX / Oaxaca / San Miguel de Allende & Destinos Internacionales</span>
+                <span>{contact.locationTitle || 'Cuernavaca, Morelos / CDMX / Oaxaca'}</span>
               </p>
               <p className="flex items-center gap-2 pt-2">
                 <Shield className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>Descargas seguras protegidas con PIN & Marcas de agua</span>
+                <span>{generalConfig?.footerSecurityText || 'Descargas seguras protegidas con PIN & Marcas de agua'}</span>
               </p>
             </div>
           </div>
         </div>
 
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-zinc-500">
-          <p>© {new Date().getFullYear()} Lente Abierto MX. Todos los derechos reservados.</p>
+          <p>© {new Date().getFullYear()} {generalConfig?.brandName || 'Lente Abierto MX'}. Todos los derechos reservados.</p>
           <p className="flex items-center gap-1">
             <span>Hecho con dedicación para fotografía de alta fidelidad</span>
             <Heart className="w-3 h-3 text-amber-500 fill-amber-500" />

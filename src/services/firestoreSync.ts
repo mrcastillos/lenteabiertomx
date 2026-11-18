@@ -218,7 +218,16 @@ export function subscribeToSiteContent(
         general: { ...DEFAULT_SITE_CONTENT.general!, ...(rawData.general || {}) },
         hero: { ...DEFAULT_SITE_CONTENT.hero, ...(rawData.hero || {}) },
         announcement: { ...DEFAULT_SITE_CONTENT.announcement, ...(rawData.announcement || {}) },
-        biography: { ...DEFAULT_SITE_CONTENT.biography, ...(rawData.biography || {}) },
+        biography: {
+          ...DEFAULT_SITE_CONTENT.biography,
+          ...(rawData.biography || {}),
+          principles: Array.isArray(rawData.biography?.principles)
+            ? rawData.biography.principles
+            : DEFAULT_SITE_CONTENT.biography.principles,
+          gear: Array.isArray(rawData.biography?.gear)
+            ? rawData.biography.gear
+            : DEFAULT_SITE_CONTENT.biography.gear,
+        },
         contact: {
           ...DEFAULT_SITE_CONTENT.contact,
           ...(rawData.contact || {}),

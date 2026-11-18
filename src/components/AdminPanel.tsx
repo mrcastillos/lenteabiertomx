@@ -878,22 +878,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     <div className="max-w-7xl mx-auto px-4 sm:px-8 py-12 sm:py-16 text-zinc-200">
       {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-8 border-b border-white/5 mb-8">
-        <div className="flex-1">
-          <div className="flex flex-wrap items-center gap-2 mb-1">
-            <span className="flex items-center gap-1.5 text-amber-400 text-xs uppercase tracking-widest font-mono">
-              <Sparkles className="w-4 h-4" />
-              <span>Panel de Administración · Pixieset Core</span>
-            </span>
-            <span className="text-[10px] font-mono uppercase bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full">
-              {isSuperAdmin ? 'Modo Super Administrador' : 'Sesión de Gestión Activa'}
-            </span>
+        <div className="flex items-start gap-4 flex-1">
+          {siteContent?.general?.logoIconUrl && (
+            <div className="w-12 h-12 rounded-full border border-amber-400/30 bg-amber-400/5 overflow-hidden shrink-0 hidden sm:flex items-center justify-center">
+              <img
+                src={siteContent.general.logoIconUrl}
+                alt={siteContent.general?.brandName || 'Logo'}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+          <div className="flex-1">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <span className="flex items-center gap-1.5 text-amber-400 text-xs uppercase tracking-widest font-mono">
+                <Sparkles className="w-4 h-4" />
+                <span>Panel de Administración · Pixieset Core</span>
+              </span>
+              <span className="text-[10px] font-mono uppercase bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full">
+                {isSuperAdmin ? 'Modo Super Administrador' : 'Sesión de Gestión Activa'}
+              </span>
+            </div>
+            <h1 className="font-editorial text-3xl sm:text-4xl text-white font-normal">
+              Gestión de Galerías, Portal de Clientes & Google Drive
+            </h1>
+            <p className="text-xs text-zinc-400 font-light mt-1">
+              Crea colecciones, asigna PIN de apertura para clientes y PIN de descarga, edita categorías y sincroniza con tu unidad de Google Drive.
+            </p>
           </div>
-          <h1 className="font-editorial text-3xl sm:text-4xl text-white font-normal">
-            Gestión de Galerías, Portal de Clientes & Google Drive
-          </h1>
-          <p className="text-xs text-zinc-400 font-light mt-1">
-            Crea colecciones, asigna PIN de apertura para clientes y PIN de descarga, edita categorías y sincroniza con tu unidad de Google Drive.
-          </p>
         </div>
 
         {onLockAdmin && (
@@ -3699,6 +3710,73 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* Footer Texts */}
+              <div className="pt-4 border-t border-white/5 space-y-4">
+                <div>
+                  <label className="block text-xs uppercase font-mono tracking-wider text-zinc-400 mb-1.5">
+                    Descripción del Pie de Página (Footer)
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={
+                      cmsContent.general?.footerDescription ??
+                      'Plataforma de portafolio y entrega de galerías fotográficas de alta fidelidad estilo Pixieset. Capturando la luz, arquitectura y autenticidad del México contemporáneo con respeto visual y técnica editorial.'
+                    }
+                    onChange={(e) =>
+                      setCmsContent({
+                        ...cmsContent,
+                        general: {
+                          ...(cmsContent.general || {
+                            pageTitle: '',
+                            pageDescription: '',
+                            brandName: 'Lente Abierto MX',
+                            brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                            faviconUrl: '',
+                            logoIconUrl: '',
+                          }),
+                          footerDescription: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="Descripción breve que aparece debajo de tu logotipo en el pie de página..."
+                    className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-200 focus:outline-none focus:border-amber-500 resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase font-mono tracking-wider text-zinc-400 mb-1.5">
+                    Leyenda de Seguridad en el Footer (Estudio & Cobertura)
+                  </label>
+                  <input
+                    type="text"
+                    value={
+                      cmsContent.general?.footerSecurityText ??
+                      'Descargas seguras protegidas con PIN & Marcas de agua'
+                    }
+                    onChange={(e) =>
+                      setCmsContent({
+                        ...cmsContent,
+                        general: {
+                          ...(cmsContent.general || {
+                            pageTitle: '',
+                            pageDescription: '',
+                            brandName: 'Lente Abierto MX',
+                            brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                            faviconUrl: '',
+                            logoIconUrl: '',
+                          }),
+                          footerSecurityText: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-200 focus:outline-none focus:border-amber-500"
+                  />
+                  <p className="text-[11px] text-zinc-500 mt-1.5">
+                    Nota: La ubicación del estudio en el pie de página se toma automáticamente de lo que guardes en la pestaña <strong className="text-zinc-300">Contacto & Precios</strong>.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -4173,6 +4251,175 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* Equipment & Technical Arsenal */}
+              <div className="p-6 rounded-2xl bg-[#121316] border border-white/5 space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
+                  <div>
+                    <h4 className="font-editorial text-xl text-white font-medium">
+                      Equipo & Tecnologías de Alta Gama
+                    </h4>
+                    <p className="text-xs text-zinc-400 mt-0.5">
+                      Edita los textos del bloque técnico y las tarjetas de cámaras, lentes, iluminación o entrega que aparecen en tu Biografía.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentGear = cmsContent.biography.gear || [];
+                      setCmsContent({
+                        ...cmsContent,
+                        biography: {
+                          ...cmsContent.biography,
+                          gear: [
+                            ...currentGear,
+                            {
+                              title: 'Nueva Categoría de Equipo',
+                              items: ['Elemento 1', 'Elemento 2'],
+                            },
+                          ],
+                        },
+                      });
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-mono uppercase tracking-wider transition-colors shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Agregar Tarjeta de Equipo</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs uppercase font-mono tracking-wider text-zinc-400 mb-1.5">
+                      Etiqueta Superior del Bloque
+                    </label>
+                    <input
+                      type="text"
+                      value={cmsContent.biography.gearSectionBadge ?? 'Equipo & Tecnologías de Alta Gama'}
+                      onChange={(e) =>
+                        setCmsContent({
+                          ...cmsContent,
+                          biography: { ...cmsContent.biography, gearSectionBadge: e.target.value },
+                        })
+                      }
+                      placeholder="Equipo & Tecnologías de Alta Gama"
+                      className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-4 py-2 text-xs text-zinc-200 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase font-mono tracking-wider text-zinc-400 mb-1.5">
+                      Título Principal de la Sección
+                    </label>
+                    <input
+                      type="text"
+                      value={cmsContent.biography.gearSectionTitle ?? 'Garantía Técnica para Entregas de Máxima Calidad'}
+                      onChange={(e) =>
+                        setCmsContent({
+                          ...cmsContent,
+                          biography: { ...cmsContent.biography, gearSectionTitle: e.target.value },
+                        })
+                      }
+                      placeholder="Garantía Técnica para Entregas de Máxima Calidad"
+                      className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-4 py-2 text-xs text-zinc-200 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase font-mono tracking-wider text-zinc-400 mb-1.5">
+                    Párrafo Descriptivo de Respaldo Técnico
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={
+                      cmsContent.biography.gearSectionSubtitle ??
+                      'Para garantizar nitidez de galería, rango dinámico extendido y seguridad total en eventos irrepetibles, trabajamos exclusivamente con doble ranura de memoria en vivo y equipos insignia.'
+                    }
+                    onChange={(e) =>
+                      setCmsContent({
+                        ...cmsContent,
+                        biography: { ...cmsContent.biography, gearSectionSubtitle: e.target.value },
+                      })
+                    }
+                    className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-4 py-2 text-xs text-zinc-300 focus:outline-none focus:border-amber-500 resize-none"
+                  />
+                </div>
+
+                {(cmsContent.biography.gear || []).length === 0 ? (
+                  <div className="p-6 rounded-xl bg-black/30 border border-white/5 text-center text-xs text-zinc-500">
+                    No hay tarjetas de equipo configuradas. Haz clic en "Agregar Tarjeta de Equipo" si deseas mostrar esta sección.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(cmsContent.biography.gear || []).map((gearItem, index) => (
+                      <div key={index} className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-mono uppercase tracking-wider text-amber-400 font-semibold">
+                            Tarjeta {index + 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = (cmsContent.biography.gear || []).filter((_, idx) => idx !== index);
+                              setCmsContent({
+                                ...cmsContent,
+                                biography: { ...cmsContent.biography, gear: updated },
+                              });
+                            }}
+                            className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-950/30 transition-colors"
+                            title="Eliminar esta tarjeta"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] uppercase font-mono tracking-wider text-zinc-500 mb-1">
+                            Título de Categoría
+                          </label>
+                          <input
+                            type="text"
+                            value={gearItem.title}
+                            onChange={(e) => {
+                              const updated = [...(cmsContent.biography.gear || [])];
+                              updated[index] = { ...updated[index], title: e.target.value };
+                              setCmsContent({
+                                ...cmsContent,
+                                biography: { ...cmsContent.biography, gear: updated },
+                              });
+                            }}
+                            placeholder="Ej. Cuerpos de Cámara"
+                            className="w-full bg-[#181a1f] border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white font-medium focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] uppercase font-mono tracking-wider text-zinc-500 mb-1">
+                            Elementos (uno por línea)
+                          </label>
+                          <textarea
+                            rows={4}
+                            value={(gearItem.items || []).join('\n')}
+                            onChange={(e) => {
+                              const updated = [...(cmsContent.biography.gear || [])];
+                              updated[index] = {
+                                ...updated[index],
+                                items: e.target.value.split('\n'),
+                              };
+                              setCmsContent({
+                                ...cmsContent,
+                                biography: { ...cmsContent.biography, gear: updated },
+                              });
+                            }}
+                            placeholder={'Sony α7R V (61 MP)\nSony Cinema FX3\nSistema de respaldo dual'}
+                            className="w-full bg-[#181a1f] border border-zinc-800 rounded-lg px-3 py-1.5 text-[11px] text-zinc-300 leading-relaxed resize-y focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Publications & Press */}

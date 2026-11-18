@@ -26,7 +26,6 @@ import {
 } from './services/storage';
 import {
   getCurrentUser,
-  setCurrentUser,
   logoutUser,
   isAdminLoggedIn,
   setAdminLoggedIn,
@@ -34,7 +33,6 @@ import {
   setSuperAdminLoggedIn,
   saveStoredUsers,
 } from './services/userService';
-import { initAuth } from './services/firebase';
 import {
   subscribeToGalleries,
   saveGalleryToCloud,
@@ -50,7 +48,7 @@ import { DEFAULT_APPEARANCE, getReadableContrastColor, isLightColor } from './ut
 export default function App() {
   const [currentTab, setCurrentTab] = useState<
     'galleries' | 'biography' | 'contact' | 'portal' | 'admin' | 'profile'
-  >('galleries');
+  >('biography');
 
   const [galleries, setGalleries] = useState<Gallery[]>([]);
   const [selectedGallery, setSelectedGallery] = useState<Gallery | null>(null);
@@ -107,39 +105,11 @@ export default function App() {
       setFavoriteLogs(cloudFavLogs);
     });
 
-    // Initialize Firebase Auth listener
-    const unsubAuth = initAuth(
-      (fbUser) => {
-        // On Google Auth success, preserve existing bio and details if already configured
-        const current = getCurrentUser();
-        if (!current || !current.email || current.email.toLowerCase() !== fbUser.email?.toLowerCase()) {
-          const profile: UserProfile = {
-            id: `usr-${fbUser.uid}`,
-            name: fbUser.displayName || 'Martín Castillo',
-            email: fbUser.email || '',
-            role: 'fotografo',
-            avatarUrl: fbUser.photoURL || undefined,
-            createdAt: new Date().toISOString(),
-          };
-          setCurrentUser(profile);
-          setUser(profile);
-        } else if (fbUser.photoURL && !current.avatarUrl) {
-          const updated = { ...current, avatarUrl: fbUser.photoURL };
-          setCurrentUser(updated);
-          setUser(updated);
-        }
-      },
-      () => {
-        // Not actively logged in with Firebase, rely on local session
-      }
-    );
-
     return () => {
       unsubGalleries();
       unsubContent();
       unsubUsers();
       unsubFavoriteLogs();
-      if (typeof unsubAuth === 'function') unsubAuth();
     };
   }, []);
 
@@ -304,7 +274,7 @@ export default function App() {
     setAdminLoggedIn(false);
     setSuperAdminLoggedIn(false);
     if (currentTab === 'admin') {
-      setCurrentTab('galleries');
+      setCurrentTab('biography');
     }
   };
 
@@ -322,7 +292,7 @@ export default function App() {
     logoutUser();
     setUser(null);
     handleLockAdmin();
-    setCurrentTab('galleries');
+    setCurrentTab('biography');
   };
 
   const isLightTheme = isLightColor((siteContent?.appearance || DEFAULT_APPEARANCE).backgroundColor);
@@ -392,6 +362,8 @@ export default function App() {
                 galleries={galleries}
                 onSelectGallery={handleSelectGallery}
                 favorites={favorites}
+                logoUrl={siteContent.general?.logoIconUrl}
+                brandName={siteContent.general?.brandName}
               />
             )}
 
@@ -434,12 +406,16 @@ export default function App() {
                 />
               ) : (
                 <div className="max-w-md mx-auto px-4 py-24 text-center space-y-5">
-                  <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto">
-                    <span className="font-mono text-xl font-bold">🔒</span>
+                  <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto overflow-hidden">
+                    {siteContent.general?.logoIconUrl ? (
+                      <img src={siteContent.general.logoIconUrl} alt={siteContent.general?.brandName || 'Logo'} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="font-mono text-xl font-bold">🔒</span>
+                    )}
                   </div>
                   <h2 className="font-editorial text-3xl text-white">Acceso Restringido</h2>
                   <p className="text-xs text-zinc-400 leading-relaxed">
-                    El backend es exclusivo para el equipo de gestión de Lente Abierto MX. Ingresa tus credenciales autorizadas para desbloquear este panel.
+                    El backend es exclusivo para el equipo de gestión de {siteContent.general?.brandName || 'Lente Abierto MX'}. Ingresa tus credenciales autorizadas para desbloquear este panel.
                   </p>
                   <button
                     onClick={() => setIsAdminAuthModalOpen(true)}
@@ -470,7 +446,7 @@ export default function App() {
         />
       </div>
 
-      {/* User Auth Modal (Login / Register / Google) */}
+      {/* User Auth Modal (Login / Register) */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
@@ -481,6 +457,8 @@ export default function App() {
         onSuperAdminSuccess={() => {
           handleAdminAuthSuccess(true);
         }}
+        logoUrl={siteContent.general?.logoIconUrl}
+        brandName={siteContent.general?.brandName}
       />
 
       {/* Backend Auth Modal */}
@@ -488,6 +466,8 @@ export default function App() {
         isOpen={isAdminAuthModalOpen}
         onClose={() => setIsAdminAuthModalOpen(false)}
         onSuccess={(superAdmin) => handleAdminAuthSuccess(Boolean(superAdmin))}
+        logoUrl={siteContent.general?.logoIconUrl}
+        brandName={siteContent.general?.brandName}
       />
 
       {/* Direct Shared Link PIN Unlock Modal (when opening a private gallery URL directly) */}
@@ -495,8 +475,12 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
           <div className="relative w-full max-w-md bg-[#121316] border border-amber-500/30 rounded-3xl shadow-2xl p-6 sm:p-8 text-zinc-200">
             <div className="text-center mb-5 space-y-2">
-              <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto">
-                <span className="text-lg">🔒</span>
+              <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto overflow-hidden">
+                {siteContent.general?.logoIconUrl ? (
+                  <img src={siteContent.general.logoIconUrl} alt={siteContent.general?.brandName || 'Logo'} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-lg">🔒</span>
+                )}
               </div>
               <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-amber-400">
                 Colección Privada

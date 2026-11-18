@@ -49,7 +49,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="max-w-7xl mx-auto px-3 sm:px-8 h-18 sm:h-20 flex items-center justify-between gap-2">
         {/* Brand Logo */}
         <button
-          onClick={() => onSelectTab('galleries')}
+          onClick={() => onSelectTab('biography')}
           className="flex items-center gap-2.5 sm:gap-3 text-left group shrink-0"
         >
           <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-amber-400/30 flex items-center justify-center bg-amber-400/5 group-hover:border-amber-400/70 transition-colors shrink-0 overflow-hidden">
@@ -72,18 +72,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Desktop Navigation Links */}
         <nav className="hidden md:flex items-center gap-8 text-xs font-sans uppercase tracking-[0.18em]">
           <button
-            onClick={() => onSelectTab('galleries')}
-            className={`transition-colors py-1 relative ${
-              currentTab === 'galleries' ? 'text-amber-400 font-semibold' : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            Galerías
-            {currentTab === 'galleries' && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400" />
-            )}
-          </button>
-
-          <button
             onClick={() => onSelectTab('biography')}
             className={`transition-colors py-1 relative ${
               currentTab === 'biography' ? 'text-amber-400 font-semibold' : 'text-zinc-400 hover:text-white'
@@ -96,13 +84,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           <button
-            onClick={() => onSelectTab('contact')}
+            onClick={() => onSelectTab('galleries')}
             className={`transition-colors py-1 relative ${
-              currentTab === 'contact' ? 'text-amber-400 font-semibold' : 'text-zinc-400 hover:text-white'
+              currentTab === 'galleries' ? 'text-amber-400 font-semibold' : 'text-zinc-400 hover:text-white'
             }`}
           >
-            Contacto
-            {currentTab === 'contact' && (
+            Galerías
+            {currentTab === 'galleries' && (
               <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400" />
             )}
           </button>
@@ -116,6 +104,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Lock className="w-3.5 h-3.5" />
             <span>Portal Clientes</span>
             {currentTab === 'portal' && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400" />
+            )}
+          </button>
+
+          <button
+            onClick={() => onSelectTab('contact')}
+            className={`transition-colors py-1 relative ${
+              currentTab === 'contact' ? 'text-amber-400 font-semibold' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Contacto
+            {currentTab === 'contact' && (
               <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400" />
             )}
           </button>
@@ -204,28 +204,28 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Mobile Bar Navigation */}
       <div className="md:hidden border-t border-white/5 px-4 py-2 flex items-center justify-around text-[10px] uppercase font-sans tracking-widest text-zinc-400 bg-[#0c0d0e]">
         <button
-          onClick={() => onSelectTab('galleries')}
-          className={`py-1 ${currentTab === 'galleries' ? 'text-amber-400 font-bold' : ''}`}
-        >
-          Galerías
-        </button>
-        <button
           onClick={() => onSelectTab('biography')}
           className={`py-1 ${currentTab === 'biography' ? 'text-amber-400 font-bold' : ''}`}
         >
           Biografía
         </button>
         <button
-          onClick={() => onSelectTab('contact')}
-          className={`py-1 ${currentTab === 'contact' ? 'text-amber-400 font-bold' : ''}`}
+          onClick={() => onSelectTab('galleries')}
+          className={`py-1 ${currentTab === 'galleries' ? 'text-amber-400 font-bold' : ''}`}
         >
-          Contacto
+          Galerías
         </button>
         <button
           onClick={() => onSelectTab('portal')}
           className={`py-1 ${currentTab === 'portal' ? 'text-amber-400 font-bold' : ''}`}
         >
           Clientes
+        </button>
+        <button
+          onClick={() => onSelectTab('contact')}
+          className={`py-1 ${currentTab === 'contact' ? 'text-amber-400 font-bold' : ''}`}
+        >
+          Contacto
         </button>
         <button
           onClick={() => onSelectTab('profile')}
