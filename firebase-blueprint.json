@@ -18,6 +18,7 @@
         "accessPin": { "type": "string" },
         "downloadPin": { "type": "string" },
         "isPrivate": { "type": "boolean" },
+        "driveFolderId": { "type": "string" },
         "viewsCount": { "type": "number" },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
@@ -26,10 +27,12 @@
     },
     "SiteContent": {
       "title": "SiteContent",
-      "description": "Global CMS content for Lente Abierto MX",
+      "description": "Global CMS content and theme appearance for Lente Abierto MX",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "galleriesInitialized": { "type": "boolean" },
+        "appearance": { "type": "object" },
         "updatedAt": { "type": "string" }
       },
       "required": ["id"]
