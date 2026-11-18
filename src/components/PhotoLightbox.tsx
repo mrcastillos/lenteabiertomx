@@ -25,6 +25,7 @@ import {
   removeFavoriteLog,
   isGalleryPinVerifiedInSession,
   getPhotoFavoriteCount,
+  getGalleryShareUrl,
 } from '../services/storage';
 
 interface PhotoLightboxProps {
@@ -39,6 +40,7 @@ interface PhotoLightboxProps {
   onRequestPin: (actionType: 'single', onSuccess: () => void) => void;
   onRequestFavorite?: (photo: Photo) => void;
   isPinVerified: boolean;
+  isExpired?: boolean;
 }
 
 export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
@@ -53,6 +55,7 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
   onRequestPin,
   onRequestFavorite,
   isPinVerified,
+  isExpired = false,
 }) => {
   const [showInfo, setShowInfo] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -161,6 +164,7 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
   };
 
   const handleDownloadClick = () => {
+    if (isExpired) return;
     const client = getClientSessionInfo();
     const pinVerified = isPinVerified || isGalleryPinVerifiedInSession(gallery.id);
     if (!client || (gallery.downloadPin && !pinVerified)) {
@@ -181,7 +185,7 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
   };
 
   const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
+    navigator.clipboard.writeText(getGalleryShareUrl(gallery));
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
@@ -268,13 +272,13 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
           {/* Download Clean Button */}
           <button
             onClick={handleDownloadClick}
-            disabled={isDownloading}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-md shadow-amber-500/20 disabled:opacity-50"
-            title="Descargar fotografía limpia sin marca de agua"
+            disabled={isDownloading || isExpired}
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-md shadow-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={isExpired ? 'Descargas expiradas' : 'Descargar fotografía limpia sin marca de agua'}
           >
             <Download className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">
-              {isDownloading ? 'Descargando...' : 'Descargar Original'}
+              {isExpired ? 'Descargas Expiradas' : isDownloading ? 'Descargando...' : 'Descargar Original'}
             </span>
           </button>
 
@@ -428,10 +432,11 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
 
             <button
               onClick={handleDownloadClick}
-              className="mt-4 w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase rounded-xl transition-all flex items-center justify-center gap-2"
+              disabled={isExpired || isDownloading}
+              className="mt-4 w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Download className="w-4 h-4" />
-              Descargar Archivo Original
+              {isExpired ? 'Descargas Expiradas' : 'Descargar Archivo Original'}
             </button>
           </aside>
         )}

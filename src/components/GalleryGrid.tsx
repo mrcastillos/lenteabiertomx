@@ -1,13 +1,20 @@
 import React, { useState } from 'react';
-import { Lock, Camera, Search, MapPin, Calendar, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
-import { Gallery, SiteContentConfig } from '../types';
-import { getStoredCategories, DEFAULT_SITE_CONTENT } from '../services/storage';
+import { Lock, Camera, Search, MapPin, ArrowRight, ShieldCheck, Sparkles, Eye, Heart, Clock } from 'lucide-react';
+import { Gallery, SiteContentConfig, FavoriteLog } from '../types';
+import {
+  getStoredCategories,
+  DEFAULT_SITE_CONTENT,
+  getGalleryFavoriteCount,
+  getGalleryExpirationStatus,
+} from '../services/storage';
 
 interface GalleryGridProps {
   galleries: Gallery[];
   onSelectGallery: (gallery: Gallery) => void;
   onOpenPortal: () => void;
   heroConfig?: SiteContentConfig['hero'];
+  favorites?: string[];
+  favoriteLogs?: FavoriteLog[];
 }
 
 export const GalleryGrid: React.FC<GalleryGridProps> = ({
@@ -15,6 +22,8 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
   onSelectGallery,
   onOpenPortal,
   heroConfig = DEFAULT_SITE_CONTENT.hero,
+  favorites,
+  favoriteLogs,
 }) => {
   const hero = heroConfig || DEFAULT_SITE_CONTENT.hero;
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
@@ -122,57 +131,81 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filtered.map((gallery) => (
-            <article
-              key={gallery.id}
-              onClick={() => onSelectGallery(gallery)}
-              className="group cursor-pointer flex flex-col bg-[#121316] rounded-2xl overflow-hidden border border-white/5 hover:border-amber-500/30 transition-all duration-500 hover:-translate-y-1 shadow-xl hover:shadow-2xl hover:shadow-black/60"
-            >
-              {/* Cover Thumbnail / Principal Icon of the Folder */}
-              <div className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-900">
-                <img
-                  src={gallery.coverPhotoUrl}
-                  alt={gallery.title}
-                  loading="lazy"
-                  className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-                  draggable={false}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#121316] via-transparent to-black/30" />
+          {filtered.map((gallery) => {
+            const viewsCount = gallery.viewsCount || 0;
+            const favCount = getGalleryFavoriteCount(gallery, favoriteLogs, favorites);
 
-                {/* Top Badges */}
-                <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10">
-                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md text-amber-300 border border-white/10">
-                    {gallery.category}
-                  </span>
+            return (
+              <article
+                key={gallery.id}
+                onClick={() => onSelectGallery(gallery)}
+                className="group cursor-pointer flex flex-col bg-[#121316] rounded-2xl overflow-hidden border border-white/5 hover:border-amber-500/30 transition-all duration-500 hover:-translate-y-1 shadow-xl hover:shadow-2xl hover:shadow-black/60"
+              >
+                {/* Cover Thumbnail / Principal Icon of the Folder */}
+                <div className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-900">
+                  <img
+                    src={gallery.coverPhotoUrl}
+                    alt={gallery.title}
+                    loading="lazy"
+                    className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                    draggable={false}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#121316] via-transparent to-black/30" />
 
-                  <div className="flex items-center gap-1.5">
-                    {gallery.downloadPin && (
+                  {/* Top Badges */}
+                  <div className="absolute top-3 left-3 right-3 flex items-start justify-between gap-2 z-10">
+                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md text-amber-300 border border-white/10 shrink-0">
+                      {gallery.category}
+                    </span>
+
+                    <div className="flex items-center flex-wrap justify-end gap-1.5">
                       <span
-                        className="p-1.5 rounded-full bg-black/70 backdrop-blur-md text-amber-400 border border-white/10"
-                        title="Descarga protegida con PIN"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/70 backdrop-blur-md text-zinc-200 border border-white/10 text-[10px] font-mono tabular-nums"
+                        title={`${viewsCount} ${viewsCount === 1 ? 'vista' : 'vistas'}`}
                       >
-                        <Lock className="w-3.5 h-3.5" />
+                        <Eye className="w-3.5 h-3.5 text-sky-400" />
+                        <span>{viewsCount}</span>
                       </span>
-                    )}
-                    {gallery.watermark.enabled && (
+
                       <span
-                        className="p-1.5 rounded-full bg-black/70 backdrop-blur-md text-emerald-400 border border-white/10"
-                        title="Marca de agua activa"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/70 backdrop-blur-md text-zinc-200 border border-white/10 text-[10px] font-mono tabular-nums"
+                        title={`${favCount} ${favCount === 1 ? 'favorito' : 'favoritos'} en fotos de esta galería`}
                       >
-                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <Heart
+                          className={`w-3.5 h-3.5 ${
+                            favCount > 0 ? 'fill-rose-400 text-rose-400' : 'text-rose-400/80'
+                          }`}
+                        />
+                        <span>{favCount}</span>
                       </span>
-                    )}
+
+                      {gallery.downloadPin && (
+                        <span
+                          className="p-1.5 rounded-full bg-black/70 backdrop-blur-md text-amber-400 border border-white/10"
+                          title="Descarga protegida con PIN"
+                        >
+                          <Lock className="w-3.5 h-3.5" />
+                        </span>
+                      )}
+                      {gallery.watermark.enabled && (
+                        <span
+                          className="p-1.5 rounded-full bg-black/70 backdrop-blur-md text-emerald-400 border border-white/10"
+                          title="Marca de agua activa"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Photo counter overlay */}
+                  <div className="absolute bottom-3 right-3 z-10">
+                    <span className="text-[11px] font-mono tracking-wider px-2 py-0.5 rounded bg-black/70 backdrop-blur-md text-zinc-300 border border-white/10 flex items-center gap-1">
+                      <Camera className="w-3 h-3 text-amber-400" />
+                      {gallery.photos.length} fotos
+                    </span>
                   </div>
                 </div>
-
-                {/* Photo counter overlay */}
-                <div className="absolute bottom-3 right-3 z-10">
-                  <span className="text-[11px] font-mono tracking-wider px-2 py-0.5 rounded bg-black/70 backdrop-blur-md text-zinc-300 border border-white/10 flex items-center gap-1">
-                    <Camera className="w-3 h-3 text-amber-400" />
-                    {gallery.photos.length} fotos
-                  </span>
-                </div>
-              </div>
 
               {/* Gallery Info Body */}
               <div className="p-6 flex-1 flex flex-col justify-between">
@@ -185,26 +218,45 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
                   </p>
                 </div>
 
-                <div className="pt-4 border-t border-white/5 flex items-center justify-between text-[11px] text-zinc-500">
-                  <div className="space-y-0.5">
+                <div className="pt-4 border-t border-white/5 flex items-center justify-between gap-2 text-[11px] text-zinc-500">
+                  <div className="space-y-0.5 min-w-0">
                     {gallery.clientName && (
-                      <span className="block text-zinc-300 font-medium">{gallery.clientName}</span>
+                      <span className="block text-zinc-300 font-medium truncate">{gallery.clientName}</span>
                     )}
                     {gallery.location && (
-                      <span className="flex items-center gap-1 text-zinc-400">
-                        <MapPin className="w-3 h-3 text-amber-400/80" />
-                        {gallery.location}
+                      <span className="flex items-center gap-1 text-zinc-400 truncate">
+                        <MapPin className="w-3 h-3 text-amber-400/80 shrink-0" />
+                        <span className="truncate">{gallery.location}</span>
                       </span>
                     )}
+                    {(() => {
+                      const exp = getGalleryExpirationStatus(gallery);
+                      if (!exp.hasExpiration) return null;
+                      return (
+                        <span
+                          className={`flex items-center gap-1 text-[10px] font-mono ${
+                            exp.isExpired ? 'text-rose-400' : 'text-zinc-400'
+                          }`}
+                        >
+                          <Clock className="w-3 h-3 shrink-0" />
+                          <span>
+                            {exp.isExpired
+                              ? `Expirada (${exp.formattedDate})`
+                              : `Vigente hasta ${exp.formattedDate}`}
+                          </span>
+                        </span>
+                      );
+                    })()}
                   </div>
 
-                  <span className="text-amber-400 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1 uppercase tracking-widest text-[10px] font-semibold">
+                  <span className="text-amber-400 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1 uppercase tracking-widest text-[10px] font-semibold shrink-0">
                     Abrir <ArrowRight className="w-3 h-3" />
                   </span>
                 </div>
               </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
     </div>

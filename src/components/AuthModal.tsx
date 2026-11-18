@@ -48,7 +48,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           onClose();
           return;
         }
-        const user = loginUser(email);
+        const user = loginUser(email, password);
+        setEmail('');
+        setPassword('');
         onSuccess(user);
         onClose();
       } else {
@@ -243,14 +245,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
           <div>
             <label className="block text-[10px] uppercase tracking-wider text-zinc-400 mb-1">
-              Correo Electrónico *
+              {mode === 'login' ? 'Usuario o Correo Electrónico *' : 'Correo Electrónico *'}
             </label>
             <input
               type={mode === 'login' ? 'text' : 'email'}
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="correo@ejemplo.com"
+              placeholder={mode === 'login' ? 'usuario o correo@ejemplo.com' : 'correo@ejemplo.com'}
               className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/60"
             />
           </div>

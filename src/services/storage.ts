@@ -1,5 +1,11 @@
 import { Gallery, BookingInquiry, SiteContentConfig, InstagramPost, DownloadLog, FavoriteLog } from '../types';
-import { saveDownloadLogToCloud, saveFavoriteLogToCloud, saveInquiryToCloud, saveSiteContentToCloud } from './firestoreSync';
+import {
+  saveDownloadLogToCloud,
+  saveFavoriteLogToCloud,
+  deleteFavoriteLogFromCloud,
+  saveInquiryToCloud,
+  saveSiteContentToCloud,
+} from './firestoreSync';
 import { DEFAULT_APPEARANCE } from '../utils/themePresets';
 
 const STORAGE_KEY_GALLERIES = 'lente_abierto_galleries_v2';
@@ -908,10 +914,18 @@ export function recordFavoriteLog(
 export function removeFavoriteLog(photoId: string, userEmail?: string): void {
   try {
     const current = getStoredFavoriteLogs();
-    const updated = userEmail
-      ? current.filter((f) => !(f.photoId === photoId && f.userEmail.toLowerCase() === userEmail.toLowerCase()))
-      : current.filter((f) => f.photoId !== photoId);
+    const toRemove = current.filter((f) =>
+      userEmail
+        ? f.photoId === photoId && f.userEmail.toLowerCase() === userEmail.toLowerCase()
+        : f.photoId === photoId
+    );
+    const updated = current.filter((f) => !toRemove.includes(f));
     localStorage.setItem(STORAGE_KEY_FAVORITE_LOGS, JSON.stringify(updated));
+    for (const item of toRemove) {
+      if (item.id) {
+        deleteFavoriteLogFromCloud(item.id).catch(() => {});
+      }
+    }
   } catch (e) {
     console.error('Error removing favorite log', e);
   }
@@ -939,6 +953,93 @@ export function getPhotoFavoriteCount(photoId: string): number {
   } catch {
     return 0;
   }
+}
+
+export function getGalleryFavoriteCount(
+  gallery: Gallery,
+  logsInput?: FavoriteLog[],
+  localFavoritesInput?: string[]
+): number {
+  try {
+    const logs = logsInput ?? getStoredFavoriteLogs();
+    const localFavs = localFavoritesInput ?? getFavorites();
+    const photoIds = new Set(gallery.photos.map((p) => p.id));
+
+    const uniqueKeys = new Set<string>();
+    const photosWithLogs = new Set<string>();
+
+    for (const l of logs) {
+      if (l.galleryId === gallery.id || photoIds.has(l.photoId)) {
+        const emailKey = (l.userEmail || l.id || 'anon').toLowerCase();
+        uniqueKeys.add(`${l.photoId}::${emailKey}`);
+        photosWithLogs.add(l.photoId);
+      }
+    }
+
+    let extraLocal = 0;
+    for (const favPhotoId of localFavs) {
+      if (photoIds.has(favPhotoId) && !photosWithLogs.has(favPhotoId)) {
+        extraLocal++;
+      }
+    }
+
+    return uniqueKeys.size + extraLocal;
+  } catch {
+    return 0;
+  }
+}
+
+export function getGalleryShareUrl(gallery: Gallery): string {
+  const identifier = gallery.slug || gallery.id;
+  if (typeof window === 'undefined') return `?galeria=${encodeURIComponent(identifier)}`;
+  const url = new URL(window.location.href);
+  url.search = '';
+  url.hash = '';
+  url.searchParams.set('galeria', identifier);
+  return url.toString();
+}
+
+export function getGalleryExpirationStatus(gallery: Gallery): {
+  hasExpiration: boolean;
+  isExpired: boolean;
+  daysRemaining: number | null;
+  formattedDate: string;
+} {
+  const raw = (gallery.expiresAt || '').trim();
+  if (!raw) {
+    return { hasExpiration: false, isExpired: false, daysRemaining: null, formattedDate: '' };
+  }
+
+  const parsedMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!parsedMatch) {
+    return { hasExpiration: false, isExpired: false, daysRemaining: null, formattedDate: '' };
+  }
+
+  const year = Number(parsedMatch[1]);
+  const month = Number(parsedMatch[2]);
+  const day = Number(parsedMatch[3]);
+  const expDate = new Date(year, month - 1, day, 23, 59, 59, 999);
+  if (Number.isNaN(expDate.getTime())) {
+    return { hasExpiration: false, isExpired: false, daysRemaining: null, formattedDate: '' };
+  }
+
+  const now = new Date();
+  const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const expMid = new Date(year, month - 1, day, 0, 0, 0, 0);
+  const diffDays = Math.round((expMid.getTime() - todayMid.getTime()) / (1000 * 60 * 60 * 24));
+
+  const formattedDate = expDate.toLocaleDateString('es-MX', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  return {
+    hasExpiration: true,
+    isExpired: diffDays < 0,
+    daysRemaining: diffDays,
+    formattedDate,
+  };
 }
 
 export function exportAllDataAsJson(): string {

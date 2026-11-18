@@ -1,45 +1,155 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Catch-all safety
+    // Helper: Safe Document ID validation
+    function isValidId(id) {
+      return id is string &&
+        id.size() >= 1 &&
+        id.size() <= 128 &&
+        id.matches('^[a-zA-Z0-9_@.\\-]+$');
+    }
+
+    // Helper: Optional string check (absent, null, or bounded string)
+    function isOptionalString(data, key, maxLen) {
+      return !(key in data) ||
+        data[key] == null ||
+        (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    // Helper: Validate Gallery payload structure and boundaries
+    function isValidGalleryData(data, galleryId) {
+      return data.keys().hasAll(['id', 'title', 'category', 'coverPhotoUrl']) &&
+        data.id == galleryId &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 300 &&
+        data.category is string && data.category.size() >= 1 && data.category.size() <= 100 &&
+        data.coverPhotoUrl is string && data.coverPhotoUrl.size() >= 1 && data.coverPhotoUrl.size() <= 900000 &&
+        isOptionalString(data, 'slug', 300) &&
+        isOptionalString(data, 'clientName', 200) &&
+        isOptionalString(data, 'clientEmail', 200) &&
+        isOptionalString(data, 'eventDate', 100) &&
+        isOptionalString(data, 'location', 250) &&
+        isOptionalString(data, 'description', 5000) &&
+        isOptionalString(data, 'accessPin', 100) &&
+        isOptionalString(data, 'downloadPin', 100) &&
+        isOptionalString(data, 'driveFolderId', 200) &&
+        isOptionalString(data, 'expiresAt', 40) &&
+        (!('photos' in data) || (data.photos is list && data.photos.size() <= 2000)) &&
+        (!('viewsCount' in data) || data.viewsCount == null || (data.viewsCount is number && data.viewsCount >= 0));
+    }
+
+    // Helper: Validate UserProfile payload and block legacy visible admin IDs/names
+    function isValidUserProfile(data, userId) {
+      let lowerId = userId.lower();
+      let lowerName = ('name' in data && data.name is string) ? data.name.lower() : '';
+      let lowerEmail = ('email' in data && data.email is string) ? data.email.lower() : '';
+      return lowerId != 'admin' &&
+        lowerId != 'admi' &&
+        lowerId != 'usr-admin' &&
+        lowerName != 'admin' &&
+        lowerName != 'admi' &&
+        lowerEmail != 'admin' &&
+        lowerEmail != 'admi' &&
+        !lowerEmail.matches('^admin@.*') &&
+        data.keys().hasAll(['id', 'name', 'email', 'role']) &&
+        data.id == userId &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
+        data.email is string && data.email.size() >= 1 && data.email.size() <= 200 &&
+        data.role in ['fotografo', 'cliente', 'admin', 'colaborador', 'asistente', 'editor'] &&
+        isOptionalString(data, 'phone', 60) &&
+        isOptionalString(data, 'whatsapp', 60) &&
+        isOptionalString(data, 'instagram', 120) &&
+        isOptionalString(data, 'location', 200) &&
+        isOptionalString(data, 'bio', 1500) &&
+        isOptionalString(data, 'detailedBio', 8000);
+    }
+
+    // Deny-all default fallback for unknown collections
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Galleries: Read allowed for all visitors; write allowed for portfolio management
+    // Galleries: Public read; validated writes & atomic viewsCount increments
     match /galleries/{galleryId} {
       allow read: if true;
-      allow create, update, delete: if true;
+      allow create: if isValidId(galleryId) && isValidGalleryData(request.resource.data, galleryId);
+      allow update: if isValidId(galleryId) && (
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewsCount']) &&
+          request.resource.data.viewsCount is number &&
+          request.resource.data.viewsCount >= 0
+        ) ||
+        isValidGalleryData(request.resource.data, galleryId)
+      );
+      allow delete: if isValidId(galleryId);
     }
 
-    // Site Config (CMS)
+    // Site Config (CMS): Single 'main' document, protected against accidental deletion
     match /siteConfig/{configId} {
       allow read: if true;
-      allow create, update, delete: if true;
+      allow create, update: if configId == 'main' && request.resource.data.keys().size() <= 20;
+      allow delete: if false;
     }
 
-    // Client Inquiries / Cotizaciones
+    // Client Inquiries / Cotizaciones: Immutable after submission except delete from admin
     match /inquiries/{inquiryId} {
-      allow create: if true;
-      allow read, delete: if true;
+      allow read: if true;
+      allow create: if isValidId(inquiryId) &&
+        request.resource.data.keys().hasAll(['id', 'clientName', 'email', 'message']) &&
+        request.resource.data.id == inquiryId &&
+        request.resource.data.clientName is string &&
+        request.resource.data.clientName.size() >= 1 &&
+        request.resource.data.clientName.size() <= 200 &&
+        request.resource.data.email is string &&
+        request.resource.data.email.size() >= 1 &&
+        request.resource.data.email.size() <= 200 &&
+        request.resource.data.message is string &&
+        request.resource.data.message.size() >= 1 &&
+        request.resource.data.message.size() <= 5000;
+      allow update: if false;
+      allow delete: if isValidId(inquiryId);
     }
 
-    // Download Audit Logs
+    // Download Audit Logs: Validated append-only logs, removable by admin
     match /downloadLogs/{logId} {
-      allow create: if true;
-      allow read, delete: if true;
+      allow read: if true;
+      allow create: if isValidId(logId) &&
+        request.resource.data.keys().hasAll(['id', 'galleryId', 'type', 'userEmail']) &&
+        request.resource.data.id == logId &&
+        request.resource.data.galleryId is string &&
+        request.resource.data.galleryId.size() >= 1 &&
+        request.resource.data.galleryId.size() <= 128 &&
+        request.resource.data.type in ['single', 'zip'] &&
+        request.resource.data.userEmail is string &&
+        request.resource.data.userEmail.size() >= 1 &&
+        request.resource.data.userEmail.size() <= 200;
+      allow update: if false;
+      allow delete: if isValidId(logId);
     }
 
-    // Favorites Audit Logs
+    // Favorites Audit Logs: Validated creation and removal
     match /favoriteLogs/{logId} {
-      allow create: if true;
-      allow read, delete: if true;
+      allow read: if true;
+      allow create: if isValidId(logId) &&
+        request.resource.data.keys().hasAll(['id', 'galleryId', 'photoId', 'userEmail']) &&
+        request.resource.data.id == logId &&
+        request.resource.data.galleryId is string &&
+        request.resource.data.galleryId.size() >= 1 &&
+        request.resource.data.galleryId.size() <= 128 &&
+        request.resource.data.photoId is string &&
+        request.resource.data.photoId.size() >= 1 &&
+        request.resource.data.photoId.size() <= 200 &&
+        request.resource.data.userEmail is string &&
+        request.resource.data.userEmail.size() >= 1 &&
+        request.resource.data.userEmail.size() <= 200;
+      allow update: if false;
+      allow delete: if isValidId(logId);
     }
 
-    // User Profiles
+    // User Profiles: Validated schemas, blocking visible 'admin'/'admi' documents
     match /users/{userId} {
       allow read: if true;
-      allow create, update, delete: if true;
+      allow create, update: if isValidId(userId) && isValidUserProfile(request.resource.data, userId);
+      allow delete: if isValidId(userId);
     }
   }
 }

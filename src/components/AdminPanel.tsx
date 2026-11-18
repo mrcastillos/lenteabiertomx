@@ -43,6 +43,7 @@ import {
   Database,
   AlertTriangle,
   RotateCcw,
+  Clock,
 } from 'lucide-react';
 import {
   Gallery,
@@ -85,6 +86,8 @@ import {
   getStoredFavoriteLogs,
   clearFavoriteLogs,
   removeFavoriteLog,
+  getGalleryShareUrl,
+  getGalleryExpirationStatus,
 } from '../services/storage';
 import {
   deleteGalleryFromCloud,
@@ -286,6 +289,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     downloadPin: string;
     isPrivate: boolean;
     driveFolderId: string;
+    expiresAt: string;
     watermarkEnabled: boolean;
     watermarkText: string;
     watermarkSubtext: string;
@@ -307,6 +311,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     downloadPin: '2026',
     isPrivate: false,
     driveFolderId: '',
+    expiresAt: '',
     watermarkEnabled: true,
     watermarkText: 'LENTE ABIERTO MX',
     watermarkSubtext: 'MUESTRA DE CLIENTE · COPIA NO AUTORIZADA',
@@ -489,6 +494,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       downloadPin: g.downloadPin || '',
       isPrivate: g.isPrivate ?? false,
       driveFolderId: inferDriveFolderId(g),
+      expiresAt: g.expiresAt || '',
       watermarkEnabled: g.watermark.enabled,
       watermarkText: g.watermark.text,
       watermarkSubtext: g.watermark.subtext || '',
@@ -540,8 +546,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleCopyClientInvitation = (gallery: Gallery) => {
-    const portalUrl = `${window.location.origin}`;
-    const text = `Hola ${gallery.clientName || 'Cliente'}, tu galería fotográfica en Lente Abierto MX ya está lista.\n\nPuedes ingresar desde el Portal de Clientes con:\n🔑 PIN de Apertura: ${gallery.accessPin || gallery.downloadPin || 'Sin PIN'}\n📥 PIN de Descarga: ${gallery.downloadPin || 'Libre'}\n\nEnlace: ${portalUrl}`;
+    const directUrl = getGalleryShareUrl(gallery);
+    const exp = getGalleryExpirationStatus(gallery);
+    const expNote = exp.hasExpiration ? `\n⏳ Disponible hasta: ${exp.formattedDate}` : '';
+    const text = `Hola ${gallery.clientName || 'Cliente'}, tu galería fotográfica "${gallery.title}" en Lente Abierto MX ya está lista.\n\n🔗 Enlace directo: ${directUrl}\n🔑 PIN de Apertura: ${gallery.accessPin || 'Acceso directo'}\n📥 PIN de Descarga: ${gallery.downloadPin || 'Libre'}${expNote}`;
     navigator.clipboard.writeText(text);
     setCopiedLinkForGallery(gallery.id);
     setTimeout(() => setCopiedLinkForGallery(null), 3500);
@@ -785,6 +793,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     const cleanDriveFolder = galleryForm.driveFolderId.trim()
       ? extractFolderId(galleryForm.driveFolderId)
       : undefined;
+    const cleanExpiresAt = galleryForm.expiresAt.trim() || undefined;
 
     if (editingGalleryId) {
       const updated = galleries.map((g) => {
@@ -803,6 +812,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             downloadPin: galleryForm.downloadPin,
             isPrivate: galleryForm.isPrivate,
             driveFolderId: cleanDriveFolder,
+            expiresAt: cleanExpiresAt,
             watermark: watermarkConfig,
             photos: galleryForm.photos,
           };
@@ -825,6 +835,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         accessPin: galleryForm.accessPin,
         downloadPin: galleryForm.downloadPin,
         driveFolderId: cleanDriveFolder,
+        expiresAt: cleanExpiresAt,
         watermark: watermarkConfig,
         photos: galleryForm.photos,
         isPrivate: galleryForm.isPrivate,
@@ -957,6 +968,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               downloadPin: '2026',
               isPrivate: false,
               driveFolderId: '',
+              expiresAt: '',
               watermarkEnabled: true,
               watermarkText: 'LENTE ABIERTO MX',
               watermarkSubtext: 'MUESTRA DE CLIENTE · COPIA NO AUTORIZADA',
@@ -1194,6 +1206,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               {gallery.downloadPin || 'Libre'}
                             </span>
                           </p>
+                          {(() => {
+                            const exp = getGalleryExpirationStatus(gallery);
+                            if (!exp.hasExpiration) return null;
+                            return (
+                              <p
+                                className={`flex items-center gap-1.5 text-[11px] font-mono ${
+                                  exp.isExpired ? 'text-rose-400' : 'text-sky-300'
+                                }`}
+                              >
+                                <Clock className="w-3.5 h-3.5 shrink-0" />
+                                <span>
+                                  {exp.isExpired
+                                    ? `Expirada (${exp.formattedDate})`
+                                    : `Vigente hasta ${exp.formattedDate}`}
+                                </span>
+                              </p>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -1873,6 +1903,44 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       {/* TAB 5: CREATE / EDIT GALLERY FORM */}
       {activeTab === 'newGallery' && (
         <form onSubmit={handleSaveGalleryForm} className="space-y-8">
+          {/* Top Sticky Action Bar (Avoids scrolling down past hundreds of photos) */}
+          <div className="sticky top-[74px] sm:top-[82px] z-20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:px-6 rounded-2xl bg-[#121316]/95 backdrop-blur-xl border border-amber-500/20 shadow-xl">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-editorial text-xl sm:text-2xl text-white font-medium truncate">
+                  {editingGalleryId ? 'Editar Galería Fotográfica' : 'Crear Nueva Colección'}
+                </h3>
+                <span className="text-[11px] text-amber-400 font-mono">
+                  {editingGalleryId ? '· Editando' : '· Nueva'}
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-400 truncate">
+                {galleryForm.title || 'Completa los datos y guarda tus cambios desde aquí'}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('galleries');
+                  setEditingGalleryId(null);
+                }}
+                className="px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="submit"
+                className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-semibold text-xs tracking-widest uppercase transition-all shadow-lg shadow-amber-500/20"
+              >
+                <Check className="w-4 h-4" />
+                <span>{editingGalleryId ? 'Guardar Cambios' : 'Publicar Galería'}</span>
+              </button>
+            </div>
+          </div>
+
           {/* Tutorial / Help Banner */}
           <div className="p-6 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-zinc-300 space-y-2 text-xs">
             <div className="flex items-center gap-2 text-amber-300 font-mono uppercase tracking-wider font-semibold">
@@ -1890,9 +1958,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
           <div className="p-8 rounded-3xl bg-[#121316] border border-white/5 space-y-6">
             <div className="flex items-center justify-between pb-4 border-b border-white/5">
-              <h3 className="font-editorial text-2xl text-white font-medium">
-                {editingGalleryId ? 'Editar Galería Fotográfica' : 'Crear Nueva Colección'}
-              </h3>
+              <h4 className="font-editorial text-xl text-white font-medium">
+                Información General y Seguridad
+              </h4>
               <span className="text-xs text-amber-400 font-mono">
                 {editingGalleryId ? 'Modificando galería existente' : 'Paso a Paso'}
               </span>
@@ -2043,6 +2111,54 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 />
                 <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500" />
               </label>
+            </div>
+
+            {/* Optional Expiration Date */}
+            <div className="p-4 sm:p-5 rounded-xl bg-black/40 border border-white/5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs text-white font-medium flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Fecha de Vigencia / Expiración de Descargas (Opcional)</span>
+                  </p>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    Pasada esta fecha, el cliente podrá ver las muestras pero las descargas ZIP/originales quedarán bloqueadas automáticamente.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <input
+                    type="date"
+                    value={galleryForm.expiresAt}
+                    onChange={(e) => setGalleryForm({ ...galleryForm, expiresAt: e.target.value })}
+                    className="bg-[#181a1f] border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                  />
+                  {[30, 90].map((days) => (
+                    <button
+                      key={days}
+                      type="button"
+                      onClick={() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + days);
+                        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                        setGalleryForm({ ...galleryForm, expiresAt: iso });
+                      }}
+                      className="px-2.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-mono uppercase text-zinc-300"
+                    >
+                      +{days} días
+                    </button>
+                  ))}
+                  {galleryForm.expiresAt && (
+                    <button
+                      type="button"
+                      onClick={() => setGalleryForm({ ...galleryForm, expiresAt: '' })}
+                      className="px-2.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-mono uppercase text-zinc-400 hover:text-white"
+                    >
+                      Sin límite
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div>

@@ -4,8 +4,10 @@ import {
   getDocs,
   getDoc,
   setDoc,
+  updateDoc,
   deleteDoc,
   onSnapshot,
+  increment,
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { Gallery, SiteContentConfig, DownloadLog, FavoriteLog, BookingInquiry, UserProfile } from '../types';
@@ -174,6 +176,17 @@ export async function deleteGalleryFromCloud(galleryId: string): Promise<void> {
   }
 }
 
+export async function incrementGalleryViewsInCloud(galleryId: string): Promise<void> {
+  if (!db || !galleryId) return;
+  try {
+    await updateDoc(doc(db, 'galleries', galleryId), {
+      viewsCount: increment(1),
+    });
+  } catch (err) {
+    console.warn('Error incrementing gallery views in cloud:', err);
+  }
+}
+
 // ----------------------------------------------------------------------
 // SITE CONFIG (CMS) CLOUD SYNC
 // ----------------------------------------------------------------------
@@ -294,6 +307,38 @@ export async function fetchFavoriteLogsFromCloud(): Promise<FavoriteLog[]> {
     handleFirestoreError(err, OperationType.LIST, path);
     return [];
   }
+}
+
+export async function deleteFavoriteLogFromCloud(logId: string): Promise<void> {
+  if (!db || !logId) return;
+  try {
+    await deleteDoc(doc(db, 'favoriteLogs', logId));
+  } catch (err) {
+    console.warn('Error deleting favorite log from cloud:', err);
+  }
+}
+
+export function subscribeToFavoriteLogs(
+  onUpdate: (logs: FavoriteLog[]) => void
+) {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'favoriteLogs'),
+    (snapshot) => {
+      const logs: FavoriteLog[] = [];
+      snapshot.forEach((docSnap) => {
+        logs.push(docSnap.data() as FavoriteLog);
+      });
+      logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      try {
+        localStorage.setItem('lente_abierto_favorite_logs_v1', JSON.stringify(logs.slice(0, 1000)));
+      } catch {}
+      onUpdate(logs);
+    },
+    (err) => {
+      console.warn('Favorite logs cloud sync error:', err);
+    }
+  );
 }
 
 export async function saveInquiryToCloud(inquiry: BookingInquiry): Promise<void> {

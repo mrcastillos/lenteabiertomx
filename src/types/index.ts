@@ -59,6 +59,7 @@ export interface Gallery {
   driveFolderId?: string;
   createdAt: string;
   viewsCount?: number;
+  expiresAt?: string;
 }
 
 export interface InstagramPost {

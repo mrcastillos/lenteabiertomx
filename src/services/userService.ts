@@ -2,16 +2,18 @@ import { UserProfile } from '../types';
 import { saveUserToCloud, deleteUserFromCloud } from './firestoreSync';
 
 const STORAGE_KEY_USERS = 'lente_abierto_users_v2';
-const STORAGE_KEY_CURRENT_USER = 'lente_abierto_current_user_v2';
+const STORAGE_KEY_CURRENT_USER = 'lente_abierto_current_user_v3';
+const LEGACY_STORAGE_KEY_CURRENT_USER = 'lente_abierto_current_user_v2';
 const STORAGE_KEY_ADMIN_AUTH = 'lente_abierto_admin_session_v2';
 
 const STORAGE_KEY_SUPER_ADMIN_AUTH = 'lente_abierto_super_admin_session_v1';
 const LEGACY_STORAGE_KEY_ADMIN_CREDS = 'lente_abierto_admin_creds_v2';
 
-// Purge legacy exposed admin credentials if still present in localStorage
+// Purge legacy exposed admin credentials and legacy auto-logged v2 user sessions
 try {
   if (typeof localStorage !== 'undefined') {
     localStorage.removeItem(LEGACY_STORAGE_KEY_ADMIN_CREDS);
+    localStorage.removeItem(LEGACY_STORAGE_KEY_CURRENT_USER);
   }
 } catch {}
 
@@ -182,19 +184,19 @@ export function getCurrentUser(): UserProfile | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_CURRENT_USER);
     if (!raw) {
-      const users = getStoredUsers();
-      const first = users[0] || DEFAULT_PHOTOGRAPHER_PROFILE;
-      localStorage.setItem(STORAGE_KEY_CURRENT_USER, JSON.stringify(first));
-      return first;
+      return null;
     }
     const current = JSON.parse(raw);
+    if (!current || !current.id) {
+      return null;
+    }
     const users = getStoredUsers();
     const fresh = users.find(
       (u) => u.id === current.id || (u.email && current.email && u.email.toLowerCase() === current.email.toLowerCase())
     );
     return fresh || current;
   } catch {
-    return DEFAULT_PHOTOGRAPHER_PROFILE;
+    return null;
   }
 }
 
@@ -323,19 +325,29 @@ export function registerUser(data: {
   });
 }
 
-export function loginUser(email: string): UserProfile {
-  const clean = email.trim().toLowerCase();
+export function loginUser(emailOrUser: string, password?: string): UserProfile {
+  const clean = emailOrUser.trim().toLowerCase();
   if (clean === 'admin' || clean === 'admi' || clean.startsWith('admin@')) {
     throw new Error('Acceso reservado.');
   }
   const users = getStoredUsers();
-  const found = users.find((u) => u.email.toLowerCase() === clean);
+  const found = users.find((u) => {
+    const uEmail = (u.email || '').trim().toLowerCase();
+    const uName = (u.name || '').trim().toLowerCase();
+    const uPrefix = uEmail.includes('@') ? uEmail.split('@')[0] : '';
+    const uId = (u.id || '').trim().toLowerCase();
+    return uEmail === clean || uName === clean || (uPrefix && uPrefix === clean) || uId === clean;
+  });
+
   if (!found) {
-    // If not found and logging into demo, create a client profile
+    if (!clean.includes('@')) {
+      throw new Error('Usuario no encontrado. Verifica el nombre de usuario o correo.');
+    }
+    // If email not found, create a client profile
     const client: UserProfile = {
       id: `usr-${Date.now()}`,
-      name: email.split('@')[0],
-      email: email.trim(),
+      name: emailOrUser.split('@')[0],
+      email: emailOrUser.trim(),
       role: 'cliente',
       avatarUrl: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80`,
       phone: '+52 55 1234 5678',
@@ -350,6 +362,15 @@ export function loginUser(email: string): UserProfile {
     localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify([...users, client]));
     setCurrentUser(client);
     return client;
+  }
+
+  if (password !== undefined) {
+    const storedPass = (found.password || '').trim();
+    const storedPin = (found.pin || '').trim();
+    const cleanPass = password.trim();
+    if (storedPass && cleanPass !== storedPass && cleanPass !== storedPin) {
+      throw new Error('Contraseña incorrecta.');
+    }
   }
 
   setCurrentUser(found);
@@ -388,6 +409,7 @@ export function updateUserProfile(id: string, updates: Partial<UserProfile>): Us
 export function logoutUser(): void {
   try {
     localStorage.removeItem(STORAGE_KEY_CURRENT_USER);
+    localStorage.removeItem(LEGACY_STORAGE_KEY_CURRENT_USER);
   } catch (e) {
     console.error('Error logging out user', e);
   }

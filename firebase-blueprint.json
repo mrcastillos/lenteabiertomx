@@ -5,23 +5,24 @@
       "description": "A photo collection or client event gallery",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "title": { "type": "string" },
-        "slug": { "type": "string" },
-        "clientName": { "type": "string" },
-        "clientEmail": { "type": "string" },
-        "eventDate": { "type": "string" },
-        "location": { "type": "string" },
-        "category": { "type": "string" },
-        "coverPhotoUrl": { "type": "string" },
-        "description": { "type": "string" },
-        "accessPin": { "type": "string" },
-        "downloadPin": { "type": "string" },
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_@.\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "slug": { "type": "string", "maxLength": 300 },
+        "clientName": { "type": "string", "maxLength": 200 },
+        "clientEmail": { "type": "string", "maxLength": 200 },
+        "eventDate": { "type": "string", "maxLength": 100 },
+        "location": { "type": "string", "maxLength": 250 },
+        "category": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "coverPhotoUrl": { "type": "string", "minLength": 1, "maxLength": 900000 },
+        "description": { "type": "string", "maxLength": 5000 },
+        "accessPin": { "type": "string", "maxLength": 100 },
+        "downloadPin": { "type": "string", "maxLength": 100 },
         "isPrivate": { "type": "boolean" },
-        "driveFolderId": { "type": "string" },
+        "driveFolderId": { "type": "string", "maxLength": 200 },
+        "expiresAt": { "type": "string", "maxLength": 40 },
         "viewsCount": { "type": "number" },
-        "createdAt": { "type": "string" },
-        "updatedAt": { "type": "string" }
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["id", "title", "category", "coverPhotoUrl"]
     },
@@ -30,10 +31,15 @@
       "description": "Global CMS content and theme appearance for Lente Abierto MX",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
+        "id": { "type": "string", "maxLength": 64 },
         "galleriesInitialized": { "type": "boolean" },
         "appearance": { "type": "object" },
-        "updatedAt": { "type": "string" }
+        "general": { "type": "object" },
+        "hero": { "type": "object" },
+        "announcement": { "type": "object" },
+        "biography": { "type": "object" },
+        "contact": { "type": "object" },
+        "updatedAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["id"]
     },
@@ -42,64 +48,73 @@
       "description": "Booking and quote request from clients",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "email": { "type": "string" },
-        "phone": { "type": "string" },
-        "eventType": { "type": "string" },
-        "date": { "type": "string" },
-        "message": { "type": "string" },
-        "createdAt": { "type": "string" }
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_@.\\-]+$" },
+        "clientName": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "email": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "phone": { "type": "string", "maxLength": 60 },
+        "serviceType": { "type": "string", "maxLength": 150 },
+        "eventDate": { "type": "string", "maxLength": 100 },
+        "location": { "type": "string", "maxLength": 250 },
+        "budgetRange": { "type": "string", "maxLength": 150 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 5000 },
+        "status": { "type": "string", "enum": ["nuevo", "contactado", "confirmado"] },
+        "createdAt": { "type": "string", "maxLength": 64 }
       },
-      "required": ["id", "name", "email", "message"]
+      "required": ["id", "clientName", "email", "message"]
     },
     "DownloadLog": {
       "title": "DownloadLog",
-      "description": "Record of a gallery download",
+      "description": "Record of a gallery or single photo download",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "galleryId": { "type": "string" },
-        "galleryTitle": { "type": "string" },
-        "clientName": { "type": "string" },
-        "clientEmail": { "type": "string" },
-        "clientPhone": { "type": "string" },
-        "downloadType": { "type": "string" },
-        "timestamp": { "type": "string" }
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_@.\\-]+$" },
+        "galleryId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "galleryTitle": { "type": "string", "maxLength": 300 },
+        "photoId": { "type": "string", "maxLength": 200 },
+        "photoTitle": { "type": "string", "maxLength": 300 },
+        "type": { "type": "string", "enum": ["single", "zip"] },
+        "userName": { "type": "string", "maxLength": 200 },
+        "userEmail": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "userPhone": { "type": "string", "maxLength": 60 },
+        "timestamp": { "type": "string", "maxLength": 64 }
       },
-      "required": ["id", "galleryId", "clientEmail", "downloadType"]
+      "required": ["id", "galleryId", "type", "userEmail"]
     },
     "FavoriteLog": {
       "title": "FavoriteLog",
       "description": "Record of a photo added to favorites",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "photoId": { "type": "string" },
-        "galleryId": { "type": "string" },
-        "galleryTitle": { "type": "string" },
-        "clientName": { "type": "string" },
-        "clientEmail": { "type": "string" },
-        "timestamp": { "type": "string" }
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_@.\\-]+$" },
+        "galleryId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "galleryTitle": { "type": "string", "maxLength": 300 },
+        "photoId": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "photoTitle": { "type": "string", "maxLength": 300 },
+        "photoUrl": { "type": "string", "maxLength": 2000 },
+        "photoThumbnailUrl": { "type": "string", "maxLength": 2000 },
+        "userName": { "type": "string", "maxLength": 200 },
+        "userEmail": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "userPhone": { "type": "string", "maxLength": 60 },
+        "timestamp": { "type": "string", "maxLength": 64 }
       },
-      "required": ["id", "photoId", "galleryId", "clientEmail"]
+      "required": ["id", "galleryId", "photoId", "userEmail"]
     },
     "UserProfile": {
       "title": "UserProfile",
       "description": "User profile with biography, contact and credentials",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "email": { "type": "string" },
-        "role": { "type": "string" },
-        "phone": { "type": "string" },
-        "whatsapp": { "type": "string" },
-        "instagram": { "type": "string" },
-        "location": { "type": "string" },
-        "bio": { "type": "string" },
-        "detailedBio": { "type": "string" },
-        "avatarUrl": { "type": "string" }
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_@.\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "email": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "role": { "type": "string", "enum": ["fotografo", "cliente", "admin", "colaborador", "asistente", "editor"] },
+        "phone": { "type": "string", "maxLength": 60 },
+        "whatsapp": { "type": "string", "maxLength": 60 },
+        "instagram": { "type": "string", "maxLength": 120 },
+        "location": { "type": "string", "maxLength": 200 },
+        "bio": { "type": "string", "maxLength": 1500 },
+        "detailedBio": { "type": "string", "maxLength": 8000 },
+        "avatarUrl": { "type": "string", "maxLength": 500000 }
       },
       "required": ["id", "name", "email", "role"]
     }
@@ -111,7 +126,7 @@
     },
     "/siteConfig/{configId}": {
       "schema": "SiteContent",
-      "description": "Site configuration, bio, and contact info"
+      "description": "Site configuration, theme, bio, and contact info"
     },
     "/inquiries/{inquiryId}": {
       "schema": "Inquiry",

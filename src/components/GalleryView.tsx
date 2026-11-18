@@ -10,6 +10,9 @@ import {
   Camera,
   Layers,
   Sparkles,
+  Eye,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react';
 import { Gallery, Photo } from '../types';
 import { WatermarkCanvas } from './WatermarkCanvas';
@@ -26,6 +29,8 @@ import {
   isGalleryPinVerifiedInSession,
   setGalleryPinVerifiedInSession,
   getPhotoFavoriteCount,
+  getGalleryShareUrl,
+  getGalleryExpirationStatus,
 } from '../services/storage';
 
 interface GalleryViewProps {
@@ -64,6 +69,9 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [filterFavoritesOnly, setFilterFavoritesOnly] = useState(false);
 
+  const expirationStatus = getGalleryExpirationStatus(gallery);
+  const isDownloadsExpired = expirationStatus.isExpired;
+
   const displayedPhotos = filterFavoritesOnly
     ? gallery.photos.filter((p) => favorites.includes(p.id))
     : gallery.photos;
@@ -78,6 +86,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   };
 
   const handleStartZipDownload = async () => {
+    if (isDownloadsExpired) return;
     try {
       setIsZipDownloading(true);
       const token = await getAccessToken();
@@ -93,6 +102,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   };
 
   const handleDownloadFullClick = () => {
+    if (isDownloadsExpired) return;
     const client = getClientSessionInfo();
     const needsPin = gallery.downloadPin && !isPinVerified;
 
@@ -117,6 +127,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
 
   const handleSinglePhotoDownloadClick = (photo: Photo, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isDownloadsExpired) return;
     const client = getClientSessionInfo();
     const needsPin = gallery.downloadPin && !isPinVerified;
 
@@ -214,7 +225,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   };
 
   const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
+    navigator.clipboard.writeText(getGalleryShareUrl(gallery));
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
@@ -260,14 +271,21 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
           {/* Download all button */}
           <button
             onClick={handleDownloadFullClick}
-            disabled={isZipDownloading}
-            className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-sm disabled:opacity-50 shrink-0 whitespace-nowrap min-h-[40px]"
+            disabled={isZipDownloading || isDownloadsExpired}
+            className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed shrink-0 whitespace-nowrap min-h-[40px]"
+            title={isDownloadsExpired ? 'El periodo de descarga ha finalizado' : 'Descargar colección completa'}
           >
             <Download className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">
-              {isZipDownloading ? 'Preparando ZIP...' : 'Descargar Galería (ZIP)'}
+              {isDownloadsExpired
+                ? 'Vigencia Expirada'
+                : isZipDownloading
+                ? 'Preparando ZIP...'
+                : 'Descargar Galería (ZIP)'}
             </span>
-            <span className="sm:hidden text-[11px] font-bold">ZIP</span>
+            <span className="sm:hidden text-[11px] font-bold">
+              {isDownloadsExpired ? 'Expirada' : 'ZIP'}
+            </span>
           </button>
         </div>
       </nav>
@@ -363,6 +381,11 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
                 <Camera className="w-3.5 h-3.5 text-amber-400" />
                 {gallery.photos.length} Fotografías
               </span>
+              <span aria-hidden="true">·</span>
+              <span className="inline-flex items-center gap-1.5 tabular-nums">
+                <Eye className="w-3.5 h-3.5 text-sky-400" />
+                {gallery.viewsCount || 0} {(gallery.viewsCount || 0) === 1 ? 'Vista' : 'Vistas'}
+              </span>
               {gallery.downloadPin && (
                 <>
                   <span aria-hidden="true">·</span>
@@ -378,6 +401,21 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
                   <span className="inline-flex items-center gap-1.5">
                     <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
                     Protegida con marca de agua
+                  </span>
+                </>
+              )}
+              {expirationStatus.hasExpiration && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span
+                    className={`inline-flex items-center gap-1.5 ${
+                      isDownloadsExpired ? 'text-rose-400 font-medium' : ''
+                    }`}
+                  >
+                    <Clock className={`w-3.5 h-3.5 ${isDownloadsExpired ? 'text-rose-400' : 'text-amber-400'}`} />
+                    {isDownloadsExpired
+                      ? `Vigencia finalizada el ${expirationStatus.formattedDate}`
+                      : `Descargas disponibles hasta el ${expirationStatus.formattedDate}`}
                   </span>
                 </>
               )}
@@ -409,6 +447,20 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
 
       {/* Main Grid Content */}
       <main id="gallery-photos-grid" className="max-w-7xl mx-auto px-4 sm:px-8 py-8 sm:py-12">
+        {isDownloadsExpired && (
+          <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3 text-xs text-rose-200">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-white">
+                Periodo de descargas finalizado ({expirationStatus.formattedDate})
+              </p>
+              <p className="text-rose-200/85 mt-0.5 leading-relaxed">
+                Puedes seguir explorando las fotografías de muestra en pantalla. Si necesitas reactivar las descargas en alta resolución, ponte en contacto con el estudio.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Clean Pixieset-style Action Bar above the photos */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 mb-6 border-b border-white/5">
           <div className="min-w-0">
@@ -435,11 +487,11 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
             <button
               type="button"
               onClick={handleDownloadFullClick}
-              disabled={isZipDownloading}
-              className="inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-lg hover:text-amber-400 transition-colors whitespace-nowrap disabled:opacity-50"
+              disabled={isZipDownloading || isDownloadsExpired}
+              className="inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-lg hover:text-amber-400 transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Descargar ZIP</span>
+              <span>{isDownloadsExpired ? 'Descargas expiradas' : 'Descargar ZIP'}</span>
             </button>
 
             <button
@@ -540,13 +592,15 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
                             {favCount > 0 && <span className="font-bold text-[11px]">{favCount}</span>}
                           </button>
 
-                          <button
-                            onClick={(e) => handleSinglePhotoDownloadClick(photo, e)}
-                            className="p-1.5 sm:p-2 rounded-full bg-black/60 hover:bg-black/80 text-white/90 hover:text-white backdrop-blur-md transition-colors shadow-md"
-                            title="Descargar fotografía limpia sin marca"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
+                          {!isDownloadsExpired && (
+                            <button
+                              onClick={(e) => handleSinglePhotoDownloadClick(photo, e)}
+                              className="p-1.5 sm:p-2 rounded-full bg-black/60 hover:bg-black/80 text-white/90 hover:text-white backdrop-blur-md transition-colors shadow-md"
+                              title="Descargar fotografía limpia sin marca"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
 
@@ -579,10 +633,11 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
           </div>
           <button
             onClick={handleDownloadFullClick}
-            className="text-amber-400 hover:text-amber-300 tracking-wider uppercase text-[11px] flex items-center gap-1"
+            disabled={isDownloadsExpired}
+            className="text-amber-400 hover:text-amber-300 tracking-wider uppercase text-[11px] flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Download className="w-3.5 h-3.5" />
-            Descargar colección completa (.zip)
+            {isDownloadsExpired ? 'Descargas expiradas' : 'Descargar colección completa (.zip)'}
           </button>
         </div>
       </main>
@@ -601,6 +656,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
           onRequestPin={handleRequestPinFromLightbox}
           onRequestFavorite={handleLightboxRequestFav}
           isPinVerified={isPinVerified}
+          isExpired={isDownloadsExpired}
         />
       )}
 
