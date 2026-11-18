@@ -1,5 +1,6 @@
 import { Gallery, BookingInquiry, SiteContentConfig, InstagramPost, DownloadLog, FavoriteLog } from '../types';
 import { saveDownloadLogToCloud, saveFavoriteLogToCloud, saveInquiryToCloud, saveSiteContentToCloud } from './firestoreSync';
+import { DEFAULT_APPEARANCE } from '../utils/themePresets';
 
 const STORAGE_KEY_GALLERIES = 'lente_abierto_galleries_v2';
 const STORAGE_KEY_INQUIRIES = 'lente_abierto_inquiries_v2';
@@ -621,9 +622,10 @@ export function resetInstagramPosts(): InstagramPost[] {
 // -------------------------------------------------------------
 // SITE CONTENT CONFIGURATION (CMS EDITABLE FROM BACKEND)
 // -------------------------------------------------------------
-const STORAGE_KEY_SITE_CONTENT = 'lente_abierto_site_content_v1';
+const STORAGE_KEY_SITE_CONTENT = 'lente_abierto_site_content_v2';
 
 export const DEFAULT_SITE_CONTENT: SiteContentConfig = {
+  appearance: DEFAULT_APPEARANCE,
   general: {
     pageTitle: 'Lente Abierto MX · Fotografía Editorial & Bodas de Destino',
     pageDescription: 'Portafolio de fotografía de autor, bodas de destino, retrato editorial y arquitectura en México. Entrega digital de alta fidelidad estilo Pixieset.',
@@ -737,7 +739,9 @@ export const DEFAULT_SITE_CONTENT: SiteContentConfig = {
 
 export function getStoredSiteContent(): SiteContentConfig {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_SITE_CONTENT);
+    const raw =
+      localStorage.getItem(STORAGE_KEY_SITE_CONTENT) ||
+      localStorage.getItem('lente_abierto_site_content_v1');
     if (!raw) {
       localStorage.setItem(STORAGE_KEY_SITE_CONTENT, JSON.stringify(DEFAULT_SITE_CONTENT));
       return DEFAULT_SITE_CONTENT;
@@ -746,6 +750,8 @@ export function getStoredSiteContent(): SiteContentConfig {
     return {
       ...DEFAULT_SITE_CONTENT,
       ...parsed,
+      appearance: { ...DEFAULT_APPEARANCE, ...(parsed.appearance || {}) },
+      general: { ...DEFAULT_SITE_CONTENT.general, ...(parsed.general || {}) },
       hero: { ...DEFAULT_SITE_CONTENT.hero, ...(parsed.hero || {}) },
       announcement: { ...DEFAULT_SITE_CONTENT.announcement, ...(parsed.announcement || {}) },
       biography: { ...DEFAULT_SITE_CONTENT.biography, ...(parsed.biography || {}) },

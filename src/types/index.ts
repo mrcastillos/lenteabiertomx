@@ -125,7 +125,28 @@ export interface GearSection {
   items: string[];
 }
 
+export type ThemePresetId =
+  | 'default'
+  | 'navidad'
+  | 'halloween'
+  | 'san-valentin'
+  | 'primavera'
+  | 'minimal-claro'
+  | 'custom';
+
+export interface SiteAppearanceConfig {
+  preset: ThemePresetId;
+  backgroundColor: string;
+  surfaceColor: string;
+  textColor: string;
+  headingColor: string;
+  mutedTextColor: string;
+  accentColor: string;
+}
+
 export interface SiteContentConfig {
+  galleriesInitialized?: boolean;
+  appearance?: SiteAppearanceConfig;
   general?: {
     pageTitle: string;
     pageDescription: string;

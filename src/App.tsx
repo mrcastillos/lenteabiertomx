@@ -13,15 +13,26 @@ import { AdminAuthModal } from './components/AdminAuthModal';
 import { InstagramFeed } from './components/InstagramFeed';
 import { Gallery, UserProfile, SiteContentConfig } from './types';
 import { getStoredGalleries, saveGalleries, getFavorites, toggleFavorite, getStoredSiteContent, saveSiteContent } from './services/storage';
-import { getCurrentUser, setCurrentUser, logoutUser, isAdminLoggedIn, setAdminLoggedIn, saveStoredUsers } from './services/userService';
+import {
+  getCurrentUser,
+  setCurrentUser,
+  logoutUser,
+  isAdminLoggedIn,
+  setAdminLoggedIn,
+  isSuperAdminLoggedIn,
+  setSuperAdminLoggedIn,
+  saveStoredUsers,
+} from './services/userService';
 import { initAuth } from './services/firebase';
 import {
   subscribeToGalleries,
   saveGalleryToCloud,
+  deleteGalleryFromCloud,
   subscribeToSiteContent,
   saveSiteContentToCloud,
   subscribeToUsers,
 } from './services/firestoreSync';
+import { DEFAULT_APPEARANCE, getReadableContrastColor, isLightColor } from './utils/themePresets';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<
@@ -33,6 +44,7 @@ export default function App() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [currentUser, setUser] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
   const [siteContent, setSiteContent] = useState<SiteContentConfig>(getStoredSiteContent());
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState(false);
@@ -44,6 +56,7 @@ export default function App() {
     setFavorites(getFavorites());
     setUser(getCurrentUser());
     setIsAdmin(isAdminLoggedIn());
+    setIsSuperAdmin(isSuperAdminLoggedIn());
 
     // Subscribe to live cloud galleries from Firestore
     const unsubGalleries = subscribeToGalleries((cloudGalleries) => {
@@ -124,6 +137,20 @@ export default function App() {
       }
       link.href = siteContent.general.faviconUrl;
     }
+
+    // Apply appearance CSS custom properties globally so all visitors see the active theme
+    const appTheme = siteContent?.appearance || DEFAULT_APPEARANCE;
+    const light = isLightColor(appTheme.backgroundColor);
+    const rootStyle = document.documentElement.style;
+    rootStyle.setProperty('--theme-bg', appTheme.backgroundColor || DEFAULT_APPEARANCE.backgroundColor);
+    rootStyle.setProperty('--theme-surface', appTheme.surfaceColor || DEFAULT_APPEARANCE.surfaceColor);
+    rootStyle.setProperty('--theme-surface-alt', light ? '#f1f0ec' : '#181a1f');
+    rootStyle.setProperty('--theme-text', appTheme.textColor || DEFAULT_APPEARANCE.textColor);
+    rootStyle.setProperty('--theme-heading', appTheme.headingColor || DEFAULT_APPEARANCE.headingColor);
+    rootStyle.setProperty('--theme-muted', appTheme.mutedTextColor || DEFAULT_APPEARANCE.mutedTextColor);
+    rootStyle.setProperty('--theme-accent', appTheme.accentColor || DEFAULT_APPEARANCE.accentColor);
+    rootStyle.setProperty('--theme-accent-contrast', getReadableContrastColor(appTheme.accentColor || DEFAULT_APPEARANCE.accentColor));
+    rootStyle.setProperty('--theme-border', light ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.08)');
   }, [siteContent]);
 
   const handleSaveGalleries = async (newGalleries: Gallery[]) => {
@@ -141,6 +168,16 @@ export default function App() {
         console.error('Error saving gallery to cloud:', e);
       }
     }
+  };
+
+  const handleDeleteGallery = async (galleryId: string) => {
+    const updated = galleries.filter((g) => g.id !== galleryId);
+    setGalleries(updated);
+    saveGalleries(updated);
+    if (selectedGallery?.id === galleryId) {
+      setSelectedGallery(null);
+    }
+    await deleteGalleryFromCloud(galleryId);
   };
 
   const handleSaveSiteContent = async (updated: SiteContentConfig) => {
@@ -176,15 +213,19 @@ export default function App() {
 
   const handleLockAdmin = () => {
     setIsAdmin(false);
+    setIsSuperAdmin(false);
     setAdminLoggedIn(false);
+    setSuperAdminLoggedIn(false);
     if (currentTab === 'admin') {
       setCurrentTab('galleries');
     }
   };
 
-  const handleAdminAuthSuccess = () => {
+  const handleAdminAuthSuccess = (superAdmin = false) => {
     setIsAdmin(true);
+    setIsSuperAdmin(superAdmin);
     setAdminLoggedIn(true);
+    setSuperAdminLoggedIn(superAdmin);
     setSelectedGallery(null);
     setCurrentTab('admin');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -197,21 +238,28 @@ export default function App() {
     setCurrentTab('galleries');
   };
 
+  const isLightTheme = isLightColor((siteContent?.appearance || DEFAULT_APPEARANCE).backgroundColor);
+
   return (
-    <div className="min-h-screen bg-[#0c0d0e] text-[#e6e8eb] flex flex-col font-sans selection:bg-amber-500/20 selection:text-amber-200">
+    <div
+      className={`min-h-screen flex flex-col font-sans ${currentTab === 'admin' && isAdmin ? 'bg-[#0c0d0e] text-[#e6e8eb]' : 'site-theme-scope'}`}
+      data-theme-light={isLightTheme ? 'true' : 'false'}
+    >
       {/* Editorial Luxury Header */}
-      <Navbar
-        currentTab={currentTab}
-        onSelectTab={handleSelectTab}
-        currentUser={currentUser}
-        isAdmin={isAdmin}
-        onOpenAdminAuth={() => setIsAdminAuthModalOpen(true)}
-        onLockAdmin={handleLockAdmin}
-        onOpenAuthModal={() => setIsAuthModalOpen(true)}
-        onLogout={handleLogout}
-        announcement={siteContent.announcement}
-        generalConfig={siteContent.general}
-      />
+      <div className="site-theme-scope" data-theme-light={isLightTheme ? 'true' : 'false'}>
+        <Navbar
+          currentTab={currentTab}
+          onSelectTab={handleSelectTab}
+          currentUser={currentUser}
+          isAdmin={isAdmin}
+          onOpenAdminAuth={() => setIsAdminAuthModalOpen(true)}
+          onLockAdmin={handleLockAdmin}
+          onOpenAuthModal={() => setIsAuthModalOpen(true)}
+          onLogout={handleLogout}
+          announcement={siteContent.announcement}
+          generalConfig={siteContent.general}
+        />
+      </div>
 
       {/* Main View Router */}
       <div className="flex-1">
@@ -286,9 +334,12 @@ export default function App() {
                 <AdminPanel
                   galleries={galleries}
                   onSaveGalleries={handleSaveGalleries}
+                  onDeleteGallery={handleDeleteGallery}
                   onPreviewGallery={handleSelectGallery}
                   onLockAdmin={handleLockAdmin}
                   onSaveSiteContent={handleSaveSiteContent}
+                  siteContent={siteContent}
+                  isSuperAdmin={isSuperAdmin}
                 />
               ) : (
                 <div className="max-w-md mx-auto px-4 py-24 text-center space-y-5">
@@ -297,13 +348,13 @@ export default function App() {
                   </div>
                   <h2 className="font-editorial text-3xl text-white">Acceso Restringido</h2>
                   <p className="text-xs text-zinc-400 leading-relaxed">
-                    El backend es exclusivo para el fotógrafo de Lente Abierto MX. Ingresa las credenciales de administrador para desbloquear este panel.
+                    El backend es exclusivo para el equipo de gestión de Lente Abierto MX. Ingresa tus credenciales autorizadas para desbloquear este panel.
                   </p>
                   <button
                     onClick={() => setIsAdminAuthModalOpen(true)}
                     className="px-6 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-lg shadow-amber-500/20"
                   >
-                    Ingresar con Credenciales Admin
+                    Ingresar al Panel
                   </button>
                 </div>
               )
@@ -313,16 +364,20 @@ export default function App() {
       </div>
 
       {/* Instagram Feed Showcase (@lente.abierto.mx) */}
-      <InstagramFeed galleries={galleries} portraitUrl={siteContent.biography.portraitUrl} />
+      <div className="site-theme-scope" data-theme-light={isLightTheme ? 'true' : 'false'}>
+        <InstagramFeed galleries={galleries} portraitUrl={siteContent.biography.portraitUrl} />
+      </div>
 
       {/* Editorial Luxury Footer */}
-      <Footer
-        onSelectTab={handleSelectTab}
-        onOpenAdminAuth={() => setIsAdminAuthModalOpen(true)}
-        isAdmin={isAdmin}
-        contactConfig={siteContent.contact}
-        generalConfig={siteContent.general}
-      />
+      <div className="site-theme-scope" data-theme-light={isLightTheme ? 'true' : 'false'}>
+        <Footer
+          onSelectTab={handleSelectTab}
+          onOpenAdminAuth={() => setIsAdminAuthModalOpen(true)}
+          isAdmin={isAdmin}
+          contactConfig={siteContent.contact}
+          generalConfig={siteContent.general}
+        />
+      </div>
 
       {/* User Auth Modal (Login / Register / Google) */}
       <AuthModal
@@ -332,13 +387,16 @@ export default function App() {
           setUser(loggedUser);
           setIsAuthModalOpen(false);
         }}
+        onSuperAdminSuccess={() => {
+          handleAdminAuthSuccess(true);
+        }}
       />
 
-      {/* Admin Exclusive Auth Modal (Password: Mar.830903) */}
+      {/* Backend Auth Modal */}
       <AdminAuthModal
         isOpen={isAdminAuthModalOpen}
         onClose={() => setIsAdminAuthModalOpen(false)}
-        onSuccess={handleAdminAuthSuccess}
+        onSuccess={(superAdmin) => handleAdminAuthSuccess(Boolean(superAdmin))}
       />
     </div>
   );

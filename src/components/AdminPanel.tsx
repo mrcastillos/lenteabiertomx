@@ -39,6 +39,10 @@ import {
   Search,
   Download,
   Heart,
+  Palette,
+  Database,
+  AlertTriangle,
+  RotateCcw,
 } from 'lucide-react';
 import {
   Gallery,
@@ -84,40 +88,45 @@ import {
   saveGalleryToCloud,
   subscribeToUsers,
   syncAllUsersToCloud,
+  getDatabaseStatsFromCloud,
+  wipeAllDatabaseCollectionsFromCloud,
+  factoryResetSiteInCloud,
+  DatabaseCollectionStat,
 } from '../services/firestoreSync';
 import { resizeImageToDataUrl } from '../utils/imageCompressor';
 import {
-  getStoredAdminCredentials,
-  saveAdminCredentials,
-  updateAdminCredentials,
   getStoredUsers,
   addUser,
   deleteUser,
   updateUserProfile,
-  AdminCredentials,
   DEFAULT_PHOTOGRAPHER_PROFILE,
 } from '../services/userService';
+import { THEME_PRESETS, DEFAULT_APPEARANCE } from '../utils/themePresets';
 import { googleSignIn, getAccessToken } from '../services/firebase';
 
 interface AdminPanelProps {
   galleries: Gallery[];
   onSaveGalleries: (galleries: Gallery[]) => void;
+  onDeleteGallery?: (galleryId: string) => Promise<void> | void;
   onPreviewGallery: (gallery: Gallery) => void;
   onLockAdmin?: () => void;
   siteContent?: SiteContentConfig;
   onSaveSiteContent?: (content: SiteContentConfig) => Promise<void> | void;
+  isSuperAdmin?: boolean;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
   galleries,
   onSaveGalleries,
+  onDeleteGallery,
   onPreviewGallery,
   onLockAdmin,
   siteContent,
   onSaveSiteContent,
+  isSuperAdmin = false,
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'galleries' | 'portalConfig' | 'categories' | 'driveSync' | 'newGallery' | 'inquiries' | 'downloads' | 'favorites' | 'siteCms' | 'users'
+    'galleries' | 'portalConfig' | 'categories' | 'driveSync' | 'newGallery' | 'inquiries' | 'downloads' | 'favorites' | 'siteCms' | 'users' | 'superAdmin'
   >('galleries');
 
   const [cmsContent, setCmsContent] = useState<SiteContentConfig>(siteContent || getStoredSiteContent());
@@ -125,8 +134,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isSavingCms, setIsSavingCms] = useState(false);
   const [cmsSaveError, setCmsSaveError] = useState<string | null>(null);
   const [isSyncingUsersCloud, setIsSyncingUsersCloud] = useState(false);
-  const [usersSyncFeedback, setUsersSyncFeedback] = useState<string | null>(null);
-  const [cmsSubTab, setCmsSubTab] = useState<'general' | 'bio' | 'hero' | 'contact' | 'pricing' | 'announcement' | 'instagram'>('general');
+  const [cmsSubTab, setCmsSubTab] = useState<'general' | 'appearance' | 'bio' | 'hero' | 'contact' | 'pricing' | 'announcement' | 'instagram'>('general');
+
+  // Gallery Drive Refresh & Delete Modal State
+  const [syncingGalleryId, setSyncingGalleryId] = useState<string | null>(null);
+  const [galleryActionFeedback, setGalleryActionFeedback] = useState<{ isError: boolean; message: string } | null>(null);
+  const [galleryToDelete, setGalleryToDelete] = useState<Gallery | null>(null);
+  const [isDeletingGallery, setIsDeletingGallery] = useState(false);
+  const [driveLinkPromptGallery, setDriveLinkPromptGallery] = useState<Gallery | null>(null);
+  const [driveLinkPromptInput, setDriveLinkPromptInput] = useState('');
+
+  // Super Admin Database Tools State
+  const [dbStats, setDbStats] = useState<{ collections: DatabaseCollectionStat[]; totalDocs: number; totalBytes: number } | null>(null);
+  const [isLoadingDbStats, setIsLoadingDbStats] = useState(false);
+  const [isWipingDb, setIsWipingDb] = useState(false);
+  const [superAdminActionModal, setSuperAdminActionModal] = useState<null | 'wipe' | 'factory-empty' | 'factory-demo'>(null);
+  const [superAdminConfirmText, setSuperAdminConfirmText] = useState('');
+  const [superAdminFeedback, setSuperAdminFeedback] = useState<{ isError: boolean; message: string } | null>(null);
 
   // Download Logs State
   const [downloadLogs, setDownloadLogs] = useState<DownloadLog[]>([]);
@@ -137,17 +161,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [favoriteLogs, setFavoriteLogs] = useState<FavoriteLog[]>([]);
   const [favoriteSearch, setFavoriteSearch] = useState('');
   const [selectedClientForFavs, setSelectedClientForFavs] = useState<string | null>(null);
-
-  // Admin Credentials Management State
-  const [adminCreds, setAdminCreds] = useState<AdminCredentials>(getStoredAdminCredentials());
-  const [adminUserForm, setAdminUserForm] = useState(adminCreds.username);
-  const [adminEmailForm, setAdminEmailForm] = useState(adminCreds.email);
-  const [adminCurrentPass, setAdminCurrentPass] = useState('');
-  const [adminNewPass, setAdminNewPass] = useState('');
-  const [adminConfirmPass, setAdminConfirmPass] = useState('');
-  const [showCurrentPass, setShowCurrentPass] = useState(false);
-  const [showNewPass, setShowNewPass] = useState(false);
-  const [adminCredsFeedback, setAdminCredsFeedback] = useState<{ isError: boolean; message: string } | null>(null);
 
   // Users & Collaborators State
   const [userList, setUserList] = useState<UserProfile[]>([]);
@@ -223,7 +236,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   useEffect(() => {
     setUserList(getStoredUsers());
-    setAdminCreds(getStoredAdminCredentials());
     setDownloadLogs(getStoredDownloadLogs());
     setFavoriteLogs(getStoredFavoriteLogs());
 
@@ -267,6 +279,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     accessPin: string;
     downloadPin: string;
     isPrivate: boolean;
+    driveFolderId: string;
     watermarkEnabled: boolean;
     watermarkText: string;
     watermarkSubtext: string;
@@ -285,6 +298,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     accessPin: '',
     downloadPin: '2026',
     isPrivate: false,
+    driveFolderId: '',
     watermarkEnabled: true,
     watermarkText: 'LENTE ABIERTO MX',
     watermarkSubtext: 'MUESTRA DE CLIENTE · COPIA NO AUTORIZADA',
@@ -338,6 +352,117 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setEditingCatNew('');
   };
 
+  const inferDriveFolderId = (g: Gallery): string => {
+    if (g.driveFolderId && g.driveFolderId.trim()) {
+      return extractFolderId(g.driveFolderId);
+    }
+    const prefix = 'Colección Google Drive:';
+    if (g.title && g.title.includes(prefix)) {
+      const candidate = g.title.split(prefix)[1]?.trim() || '';
+      if (candidate.toLowerCase() === 'principal') return 'root';
+      if (/^[a-zA-Z0-9_-]{12,}$/.test(candidate) || candidate.includes('drive.google.com')) {
+        return extractFolderId(candidate);
+      }
+    }
+    return '';
+  };
+
+  const handleSyncGalleryFromDrive = async (gallery: Gallery, overrideFolderInput?: string) => {
+    const rawFolder = overrideFolderInput !== undefined ? overrideFolderInput.trim() : inferDriveFolderId(gallery);
+    if (!rawFolder) {
+      setDriveLinkPromptGallery(gallery);
+      setDriveLinkPromptInput('');
+      return;
+    }
+
+    const cleanFolderId = extractFolderId(rawFolder);
+    setSyncingGalleryId(gallery.id);
+    setGalleryActionFeedback(null);
+
+    try {
+      let fetchedPhotos = await fetchPhotosFromScriptApi(cleanFolderId);
+      if (fetchedPhotos.length === 0) {
+        const oauthToken = driveAccessToken || (await getAccessToken());
+        if (oauthToken && cleanFolderId !== 'root') {
+          fetchedPhotos = await listPhotosInDriveFolder(oauthToken, cleanFolderId);
+        }
+      }
+
+      if (fetchedPhotos.length === 0) {
+        setGalleryActionFeedback({
+          isError: true,
+          message: `No se encontraron fotos en la carpeta de Drive (${cleanFolderId}). Verifica que la carpeta tenga imágenes o comparte el ID correcto.`,
+        });
+        return;
+      }
+
+      const existingByDriveId = new Map<string, Photo>();
+      for (const existing of gallery.photos) {
+        const key = existing.driveFileId || existing.id;
+        if (key) existingByDriveId.set(key, existing);
+      }
+
+      let addedCount = 0;
+      const mergedPhotos: Photo[] = fetchedPhotos.map((remote) => {
+        const key = remote.driveFileId || remote.id;
+        const prev = existingByDriveId.get(key);
+        if (prev) {
+          return {
+            ...prev,
+            url: remote.url,
+            thumbnailUrl: remote.thumbnailUrl || prev.thumbnailUrl,
+            driveFileId: remote.driveFileId || prev.driveFileId,
+            aspectRatio: remote.aspectRatio || prev.aspectRatio,
+          };
+        }
+        addedCount++;
+        return remote;
+      });
+
+      const keptKeys = new Set(mergedPhotos.map((p) => p.driveFileId || p.id));
+      const removedCount = gallery.photos.filter((p) => !keptKeys.has(p.driveFileId || p.id)).length;
+      const updatedCover =
+        mergedPhotos.some((p) => p.url === gallery.coverPhotoUrl)
+          ? gallery.coverPhotoUrl
+          : mergedPhotos[0]?.url || gallery.coverPhotoUrl;
+
+      const updatedGallery: Gallery = {
+        ...gallery,
+        driveFolderId: cleanFolderId,
+        coverPhotoUrl: updatedCover,
+        photos: mergedPhotos,
+      };
+
+      await saveGalleryToCloud(updatedGallery);
+      const nextList = galleries.map((item) => (item.id === gallery.id ? updatedGallery : item));
+      onSaveGalleries(nextList);
+
+      if (editingGalleryId === gallery.id) {
+        setGalleryForm((prev) => ({
+          ...prev,
+          driveFolderId: cleanFolderId,
+          coverPhotoUrl: updatedCover,
+          photos: mergedPhotos,
+        }));
+      }
+
+      setGalleryActionFeedback({
+        isError: false,
+        message: `🔄 "${gallery.title}" actualizada desde Drive: ${mergedPhotos.length} fotos (${addedCount} nuevas, ${removedCount} eliminadas).`,
+      });
+    } catch (err: any) {
+      console.error('Error refreshing gallery from Drive:', err);
+      setGalleryActionFeedback({
+        isError: true,
+        message: err?.message || 'Error al sincronizar la galería con Google Drive.',
+      });
+    } finally {
+      setSyncingGalleryId(null);
+      setDriveLinkPromptGallery(null);
+      setDriveLinkPromptInput('');
+    }
+  };
+
   // Quick helper to populate edit form
   const handleEditGallery = (g: Gallery) => {
     setEditingGalleryId(g.id);
@@ -353,6 +478,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       accessPin: g.accessPin || '',
       downloadPin: g.downloadPin || '',
       isPrivate: g.isPrivate ?? false,
+      driveFolderId: inferDriveFolderId(g),
       watermarkEnabled: g.watermark.enabled,
       watermarkText: g.watermark.text,
       watermarkSubtext: g.watermark.subtext || '',
@@ -363,11 +489,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setActiveTab('newGallery');
   };
 
-  const handleDeleteGallery = (id: string) => {
-    if (confirm('¿Estás seguro de que deseas eliminar esta galería de tu portafolio?')) {
-      const updated = galleries.filter((g) => g.id !== id);
-      onSaveGalleries(updated);
-      deleteGalleryFromCloud(id).catch((err) => console.error('Cloud delete error:', err));
+  const handleConfirmDeleteGallery = async () => {
+    if (!galleryToDelete) return;
+    setIsDeletingGallery(true);
+    setGalleryActionFeedback(null);
+    const target = galleryToDelete;
+    try {
+      if (onDeleteGallery) {
+        await onDeleteGallery(target.id);
+      } else {
+        const updated = galleries.filter((g) => g.id !== target.id);
+        onSaveGalleries(updated);
+        await deleteGalleryFromCloud(target.id);
+      }
+      setGalleryActionFeedback({
+        isError: false,
+        message: `Galería "${target.title}" eliminada y espacio liberado en Firestore.`,
+      });
+      setGalleryToDelete(null);
+    } catch (err: any) {
+      console.error('Cloud delete error:', err);
+      setGalleryActionFeedback({
+        isError: true,
+        message: err?.message || 'No se pudo eliminar la galería de Firestore.',
+      });
+    } finally {
+      setIsDeletingGallery(false);
     }
   };
 
@@ -418,6 +565,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleCreateGalleryFromDrivePhotos = () => {
     if (previewedDrivePhotos.length === 0) return;
 
+    const cleanFolder = extractFolderId(driveFolderInput);
     const cover = previewedDrivePhotos[0]?.url || '';
     const newGallery: Gallery = {
       id: `gal-drive-${Date.now()}`,
@@ -433,6 +581,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       accessPin: 'DRIVE2026',
       downloadPin: '2026',
       isPrivate: false,
+      driveFolderId: cleanFolder,
       watermark: {
         enabled: true,
         text: 'LENTE ABIERTO MX',
@@ -446,7 +595,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
     onSaveGalleries([newGallery, ...galleries]);
     setPreviewedDrivePhotos([]);
-    setDriveSyncSuccess('¡Galería creada exitosamente con miniatura principal asignada!');
+    setDriveSyncSuccess('¡Galería creada exitosamente con carpeta Drive vinculada!');
     setActiveTab('galleries');
   };
 
@@ -615,6 +764,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       style: galleryForm.watermarkStyle,
     };
 
+    const cleanDriveFolder = galleryForm.driveFolderId.trim()
+      ? extractFolderId(galleryForm.driveFolderId)
+      : undefined;
+
     if (editingGalleryId) {
       const updated = galleries.map((g) => {
         if (g.id === editingGalleryId) {
@@ -631,6 +784,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             accessPin: galleryForm.accessPin,
             downloadPin: galleryForm.downloadPin,
             isPrivate: galleryForm.isPrivate,
+            driveFolderId: cleanDriveFolder,
             watermark: watermarkConfig,
             photos: galleryForm.photos,
           };
@@ -652,6 +806,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         description: galleryForm.description,
         accessPin: galleryForm.accessPin,
         downloadPin: galleryForm.downloadPin,
+        driveFolderId: cleanDriveFolder,
         watermark: watermarkConfig,
         photos: galleryForm.photos,
         isPrivate: galleryForm.isPrivate,
@@ -701,7 +856,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <span>Panel de Administración · Pixieset Core</span>
             </span>
             <span className="text-[10px] font-mono uppercase bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full">
-              Autenticado como: {adminCreds.username}
+              {isSuperAdmin ? 'Modo Super Administrador' : 'Sesión de Gestión Activa'}
             </span>
           </div>
           <h1 className="font-editorial text-3xl sm:text-4xl text-white font-normal">
@@ -783,6 +938,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               accessPin: '',
               downloadPin: '2026',
               isPrivate: false,
+              driveFolderId: '',
               watermarkEnabled: true,
               watermarkText: 'LENTE ABIERTO MX',
               watermarkSubtext: 'MUESTRA DE CLIENTE · COPIA NO AUTORIZADA',
@@ -863,6 +1019,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
           <span>Usuarios & Seguridad ({userList.length})</span>
         </button>
+
+        {isSuperAdmin && (
+          <button
+            onClick={async () => {
+              setActiveTab('superAdmin');
+              setIsLoadingDbStats(true);
+              try {
+                const stats = await getDatabaseStatsFromCloud();
+                setDbStats(stats);
+              } catch (e) {
+                console.warn('Error fetching DB stats:', e);
+              } finally {
+                setIsLoadingDbStats(false);
+              }
+            }}
+            className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+              activeTab === 'superAdmin'
+                ? 'bg-red-600 text-white font-bold shadow-lg shadow-red-600/25'
+                : 'text-red-300 hover:text-white bg-red-950/30 border border-red-500/30'
+            }`}
+          >
+            <Database className="w-3.5 h-3.5" />
+            <span>Super Admin · BD</span>
+          </button>
+        )}
       </div>
 
       {/* TAB 1: GALLERIES LIST */}
@@ -896,111 +1077,171 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {galleries.map((gallery) => (
-              <div
-                key={gallery.id}
-                className="rounded-2xl bg-[#121316] border border-white/5 overflow-hidden flex flex-col justify-between shadow-xl group"
-              >
-                <div>
-                  {/* Cover image & icon */}
-                  <div className="relative aspect-video w-full overflow-hidden bg-zinc-900">
-                    <img
-                      src={gallery.coverPhotoUrl}
-                      alt={gallery.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#121316] to-transparent" />
-                    <div className="absolute top-3 left-3 flex items-center gap-1.5">
-                      <span className="text-[10px] font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-amber-300 border border-white/10">
-                        {gallery.category}
-                      </span>
-                      {gallery.isPrivate ? (
-                        <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 text-red-300">
-                          Privada (Solo Portal)
-                        </span>
-                      ) : (
-                        <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300">
-                          Pública
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="absolute bottom-2 right-3 flex items-center gap-1.5 text-[11px] font-mono text-zinc-300 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded">
-                      <ImageIcon className="w-3 h-3 text-amber-400" />
-                      <span>{gallery.photos.length} fotos</span>
-                    </div>
-                  </div>
-
-                  <div className="p-5 space-y-3">
-                    <h4 className="font-editorial text-xl text-white font-medium line-clamp-1">
-                      {gallery.title}
-                    </h4>
-
-                    <div className="space-y-1.5 text-xs text-zinc-400">
-                      {gallery.clientName && (
-                        <p className="text-zinc-200 font-medium">Cliente: {gallery.clientName}</p>
-                      )}
-                      <p className="flex items-center gap-1.5">
-                        <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>PIN Apertura (Portal):</span>
-                        <span className="font-mono text-emerald-300 font-bold bg-emerald-500/10 px-1.5 rounded">
-                          {gallery.accessPin || 'Sin PIN'}
-                        </span>
-                      </p>
-                      <p className="flex items-center gap-1.5">
-                        <Lock className="w-3.5 h-3.5 text-amber-400" />
-                        <span>PIN Descarga (ZIP):</span>
-                        <span className="font-mono text-amber-300 font-bold bg-amber-500/10 px-1.5 rounded">
-                          {gallery.downloadPin || 'Libre'}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card footer buttons */}
-                <div className="p-4 bg-black/30 border-t border-white/5 flex items-center justify-between text-xs">
-                  <button
-                    onClick={() => onPreviewGallery(gallery)}
-                    className="flex items-center gap-1.5 text-zinc-400 hover:text-white transition-colors"
-                    title="Ver como cliente"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>Ver</span>
-                  </button>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleCopyClientInvitation(gallery)}
-                      className="p-1.5 text-zinc-400 hover:text-amber-400 hover:bg-white/5 rounded-lg transition-colors"
-                      title="Copiar invitación y PIN para el cliente"
-                    >
-                      {copiedLinkForGallery === gallery.id ? (
-                        <Check className="w-4 h-4 text-emerald-400" />
-                      ) : (
-                        <Share2 className="w-4 h-4" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => handleEditGallery(gallery)}
-                      className="p-1.5 text-zinc-400 hover:text-amber-400 hover:bg-white/5 rounded-lg transition-colors"
-                      title="Editar configuración y fotos"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteGallery(gallery.id)}
-                      className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                      title="Eliminar galería"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
+          {galleryActionFeedback && (
+            <div
+              className={`p-4 rounded-2xl text-xs flex items-center justify-between gap-3 ${
+                galleryActionFeedback.isError
+                  ? 'bg-red-950/50 border border-red-500/40 text-red-200'
+                  : 'bg-emerald-950/50 border border-emerald-500/40 text-emerald-200'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                {galleryActionFeedback.isError ? (
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                ) : (
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                )}
+                <span>{galleryActionFeedback.message}</span>
               </div>
-            ))}
-          </div>
+              <button
+                type="button"
+                onClick={() => setGalleryActionFeedback(null)}
+                className="text-zinc-400 hover:text-white text-xs px-2"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {galleries.length === 0 ? (
+            <div className="text-center py-20 bg-white/[0.02] border border-white/5 rounded-3xl p-8 space-y-3">
+              <ImageIcon className="w-10 h-10 text-zinc-600 mx-auto" />
+              <h4 className="font-editorial text-xl text-white">No hay colecciones registradas</h4>
+              <p className="text-xs text-zinc-400 max-w-md mx-auto">
+                Tu base de datos está limpia. Crea una nueva colección o importa una carpeta desde la pestaña de Google Drive.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {galleries.map((gallery) => {
+                const isSyncingThis = syncingGalleryId === gallery.id;
+                const linkedFolder = inferDriveFolderId(gallery);
+                return (
+                  <div
+                    key={gallery.id}
+                    className="rounded-2xl bg-[#121316] border border-white/5 overflow-hidden flex flex-col justify-between shadow-xl group"
+                  >
+                    <div>
+                      {/* Cover image & icon */}
+                      <div className="relative aspect-video w-full overflow-hidden bg-zinc-900">
+                        <img
+                          src={gallery.coverPhotoUrl}
+                          alt={gallery.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#121316] to-transparent" />
+                        <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                          <span className="text-[10px] font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-amber-300 border border-white/10">
+                            {gallery.category}
+                          </span>
+                          {gallery.isPrivate ? (
+                            <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 text-red-300">
+                              Privada (Solo Portal)
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300">
+                              Pública
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="absolute bottom-2 right-3 flex items-center gap-1.5 text-[11px] font-mono text-zinc-300 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded">
+                          <ImageIcon className="w-3 h-3 text-amber-400" />
+                          <span>{gallery.photos.length} fotos</span>
+                        </div>
+                      </div>
+
+                      <div className="p-5 space-y-3">
+                        <h4 className="font-editorial text-xl text-white font-medium line-clamp-1">
+                          {gallery.title}
+                        </h4>
+
+                        <div className="space-y-1.5 text-xs text-zinc-400">
+                          {gallery.clientName && (
+                            <p className="text-zinc-200 font-medium">Cliente: {gallery.clientName}</p>
+                          )}
+                          <p className="flex items-center gap-1.5">
+                            <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>PIN Apertura (Portal):</span>
+                            <span className="font-mono text-emerald-300 font-bold bg-emerald-500/10 px-1.5 rounded">
+                              {gallery.accessPin || 'Sin PIN'}
+                            </span>
+                          </p>
+                          <p className="flex items-center gap-1.5">
+                            <Lock className="w-3.5 h-3.5 text-amber-400" />
+                            <span>PIN Descarga (ZIP):</span>
+                            <span className="font-mono text-amber-300 font-bold bg-amber-500/10 px-1.5 rounded">
+                              {gallery.downloadPin || 'Libre'}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Drive Refresh Action Row */}
+                    <div className="px-4 pb-3">
+                      <button
+                        type="button"
+                        disabled={isSyncingThis}
+                        onClick={() => handleSyncGalleryFromDrive(gallery)}
+                        className="w-full py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-300 text-[11px] font-mono uppercase tracking-wider flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
+                        title={
+                          linkedFolder
+                            ? `Sincronizar cambios desde carpeta Drive (${linkedFolder})`
+                            : 'Vincular carpeta de Drive y actualizar fotos'
+                        }
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncingThis ? 'animate-spin' : ''}`} />
+                        <span>
+                          {isSyncingThis ? 'Actualizando desde Drive...' : '🔄 Actualizar desde Drive'}
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* Card footer buttons */}
+                    <div className="p-4 bg-black/30 border-t border-white/5 flex items-center justify-between text-xs">
+                      <button
+                        onClick={() => onPreviewGallery(gallery)}
+                        className="flex items-center gap-1.5 text-zinc-400 hover:text-white transition-colors"
+                        title="Ver como cliente"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Ver</span>
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleCopyClientInvitation(gallery)}
+                          className="p-1.5 text-zinc-400 hover:text-amber-400 hover:bg-white/5 rounded-lg transition-colors"
+                          title="Copiar invitación y PIN para el cliente"
+                        >
+                          {copiedLinkForGallery === gallery.id ? (
+                            <Check className="w-4 h-4 text-emerald-400" />
+                          ) : (
+                            <Share2 className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleEditGallery(gallery)}
+                          className="p-1.5 text-zinc-400 hover:text-amber-400 hover:bg-white/5 rounded-lg transition-colors"
+                          title="Editar configuración y fotos"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setGalleryToDelete(gallery)}
+                          className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                          title="Eliminar galería y liberar espacio en Firestore"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -1808,6 +2049,40 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 placeholder="https://..."
                 className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-amber-500 font-mono text-xs"
               />
+            </div>
+
+            <div>
+              <label className="block text-zinc-400 uppercase tracking-wider text-[10px] mb-1 font-mono">
+                Carpeta de Google Drive Vinculada (ID o Enlace — Opcional)
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={galleryForm.driveFolderId}
+                  onChange={(e) => setGalleryForm({ ...galleryForm, driveFolderId: e.target.value })}
+                  placeholder="Ej. 1J-QH-F6-E5tg3iLAD8knUiXfmfk2K6tQ o enlace https://drive.google.com/drive/folders/..."
+                  className="flex-1 bg-[#181a1f] border border-zinc-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-amber-500 font-mono text-xs"
+                />
+                {editingGalleryId && (
+                  <button
+                    type="button"
+                    disabled={syncingGalleryId === editingGalleryId}
+                    onClick={() => {
+                      const currentGal = galleries.find((g) => g.id === editingGalleryId);
+                      if (currentGal) {
+                        handleSyncGalleryFromDrive(currentGal, galleryForm.driveFolderId || undefined);
+                      }
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-mono uppercase tracking-wider flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${syncingGalleryId === editingGalleryId ? 'animate-spin' : ''}`} />
+                    <span>🔄 Actualizar desde Drive</span>
+                  </button>
+                )}
+              </div>
+              <span className="text-[10px] text-zinc-500 mt-1 block">
+                Permite actualizar fotos agregadas, eliminadas o modificadas en Drive con un clic.
+              </span>
             </div>
           </div>
 
@@ -2646,6 +2921,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </button>
 
             <button
+              onClick={() => setCmsSubTab('appearance')}
+              className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
+                cmsSubTab === 'appearance'
+                  ? 'bg-amber-500 text-black font-semibold shadow-md shadow-amber-500/20'
+                  : 'bg-white/5 text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Palette className="w-3.5 h-3.5" />
+              <span>Apariencia & Temas</span>
+            </button>
+
+            <button
               onClick={() => setCmsSubTab('bio')}
               className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
                 cmsSubTab === 'bio'
@@ -3127,6 +3414,209 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* SUBTAB 0.5: APARIENCIA, COLORES Y TEMAS DE TEMPORADA */}
+          {cmsSubTab === 'appearance' && (
+            <div className="space-y-6">
+              {(() => {
+                const currentApp = cmsContent.appearance || DEFAULT_APPEARANCE;
+                const updateAppearance = (patch: Partial<typeof DEFAULT_APPEARANCE>) => {
+                  setCmsContent({
+                    ...cmsContent,
+                    appearance: {
+                      ...currentApp,
+                      ...patch,
+                    },
+                  });
+                };
+
+                return (
+                  <>
+                    {/* Preset Theme Cards */}
+                    <div className="p-6 rounded-2xl bg-[#121316] border border-amber-500/20 space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Palette className="w-5 h-5 text-amber-400" />
+                          <div>
+                            <h4 className="font-editorial text-xl text-white font-medium">
+                              Temas de Temporada y Estilo Visual
+                            </h4>
+                            <p className="text-xs text-zinc-400">
+                              Elige una paleta predefinida (Navidad, Halloween, Blanco Editorial, etc.) o personaliza cada color abajo.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => updateAppearance(DEFAULT_APPEARANCE)}
+                          className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 text-[11px] font-mono uppercase tracking-wider flex items-center gap-1.5 self-start sm:self-auto"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Tema Original</span>
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {THEME_PRESETS.map((preset) => {
+                          const isSelected = currentApp.preset === preset.id;
+                          return (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              onClick={() => updateAppearance(preset.colors)}
+                              className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between gap-3 ${
+                                isSelected
+                                  ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/50'
+                                  : 'border-white/10 bg-black/30 hover:border-white/25'
+                              }`}
+                            >
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-xs font-semibold text-white">{preset.name}</span>
+                                  {isSelected && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+                                </div>
+                                <p className="text-[11px] text-zinc-400 font-light leading-snug">
+                                  {preset.description}
+                                </p>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 pt-1">
+                                {[
+                                  preset.colors.backgroundColor,
+                                  preset.colors.surfaceColor,
+                                  preset.colors.headingColor,
+                                  preset.colors.textColor,
+                                  preset.colors.accentColor,
+                                ].map((hex, i) => (
+                                  <span
+                                    key={i}
+                                    className="w-5 h-5 rounded-full border border-white/20 shadow-sm"
+                                    style={{ backgroundColor: hex }}
+                                    title={hex}
+                                  />
+                                ))}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Fine Color Pickers & Mini Preview */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      <div className="lg:col-span-2 p-6 rounded-2xl bg-[#121316] border border-white/5 space-y-4">
+                        <h4 className="font-editorial text-xl text-white font-medium border-b border-white/5 pb-3">
+                          Personalización Manual de Colores
+                        </h4>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                          {(
+                            [
+                              { key: 'backgroundColor', label: 'Fondo Principal del Sitio' },
+                              { key: 'surfaceColor', label: 'Fondo de Tarjetas / Menús' },
+                              { key: 'headingColor', label: 'Color de Títulos (Tipografía)' },
+                              { key: 'textColor', label: 'Color de Texto General' },
+                              { key: 'mutedTextColor', label: 'Color de Textos Secundarios' },
+                              { key: 'accentColor', label: 'Color de Acento & Botones' },
+                            ] as const
+                          ).map(({ key, label }) => (
+                            <div key={key} className="p-3 rounded-xl bg-black/30 border border-white/5 space-y-2">
+                              <label className="block text-[10px] uppercase font-mono tracking-wider text-zinc-400">
+                                {label}
+                              </label>
+                              <div className="flex items-center gap-2.5">
+                                <input
+                                  type="color"
+                                  value={currentApp[key]}
+                                  onChange={(e) =>
+                                    updateAppearance({ preset: 'custom', [key]: e.target.value })
+                                  }
+                                  className="w-10 h-9 rounded-lg bg-transparent border border-white/15 cursor-pointer shrink-0"
+                                />
+                                <input
+                                  type="text"
+                                  value={currentApp[key]}
+                                  onChange={(e) =>
+                                    updateAppearance({ preset: 'custom', [key]: e.target.value })
+                                  }
+                                  className="flex-1 bg-[#181a1f] border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-200 font-mono uppercase focus:outline-none focus:border-amber-500"
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Live Mini Preview */}
+                      <div className="p-6 rounded-2xl bg-[#121316] border border-white/5 space-y-4 flex flex-col justify-between">
+                        <div className="space-y-3">
+                          <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 block">
+                            Vista Previa en Vivo
+                          </span>
+
+                          <div
+                            className="p-5 rounded-2xl border space-y-3 transition-colors"
+                            style={{
+                              backgroundColor: currentApp.backgroundColor,
+                              borderColor: 'rgba(255,255,255,0.12)',
+                            }}
+                          >
+                            <div
+                              className="p-4 rounded-xl border space-y-2"
+                              style={{
+                                backgroundColor: currentApp.surfaceColor,
+                                borderColor: 'rgba(255,255,255,0.1)',
+                              }}
+                            >
+                              <span
+                                className="text-[10px] font-mono uppercase tracking-widest block"
+                                style={{ color: currentApp.accentColor }}
+                              >
+                                Portafolio de Autor
+                              </span>
+                              <h5
+                                className="font-editorial text-xl font-normal"
+                                style={{ color: currentApp.headingColor }}
+                              >
+                                {cmsContent.general?.brandName || 'Lente Abierto MX'}
+                              </h5>
+                              <p
+                                className="text-xs leading-relaxed"
+                                style={{ color: currentApp.textColor }}
+                              >
+                                Así lucirán los textos principales y descripciones de tus colecciones.
+                              </p>
+                              <p
+                                className="text-[11px]"
+                                style={{ color: currentApp.mutedTextColor }}
+                              >
+                                Subtítulos, ubicaciones y fechas de eventos.
+                              </p>
+                              <div className="pt-2">
+                                <span
+                                  className="inline-block px-3.5 py-1.5 rounded-lg text-[11px] font-semibold uppercase tracking-wider"
+                                  style={{
+                                    backgroundColor: currentApp.accentColor,
+                                    color: '#ffffff',
+                                  }}
+                                >
+                                  Botón Principal
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <p className="text-[11px] text-zinc-400 font-light">
+                          Al presionar <strong>Guardar</strong>, todos los visitantes verán estos colores al instante desde Firestore. El panel administrativo mantiene fondo neutro para facilitar la edición.
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
 
@@ -4169,195 +4659,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       )}
 
-      {/* TAB 8: USERS & ADMIN SECURITY */}
+      {/* TAB 8: USERS & TEAM MANAGEMENT */}
       {activeTab === 'users' && (
         <div className="space-y-10 animate-fadeIn">
-          {/* SECTION A: ADMIN CREDENTIALS MODIFICATION */}
-          <div className="p-6 sm:p-8 rounded-3xl bg-[#121316] border border-amber-500/30 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
-
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/5 pb-5 mb-6">
-              <div>
-                <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] uppercase font-mono tracking-widest mb-1.5">
-                  <KeyRound className="w-3 h-3" />
-                  <span>Seguridad Maestra</span>
-                </div>
-                <h3 className="font-editorial text-2xl sm:text-3xl text-white font-medium">
-                  Modificar Usuario y Contraseña de Administrador
-                </h3>
-                <p className="text-xs text-zinc-400 font-light mt-1">
-                  Protege el backend cambiando las credenciales iniciales (por defecto: usuario <code className="text-amber-300 bg-black/40 px-1.5 py-0.5 rounded">admi</code> y contraseña <code className="text-amber-300 bg-black/40 px-1.5 py-0.5 rounded">Mar.830903</code>).
-                </p>
-              </div>
-
-              <div className="text-right font-mono text-[11px] text-zinc-400 bg-black/30 px-3.5 py-2 rounded-xl border border-white/5">
-                <span className="text-zinc-500 block text-[9px] uppercase">Usuario Activo:</span>
-                <span className="text-amber-400 font-semibold">{adminCreds.username}</span>
-              </div>
-            </div>
-
-            {adminCredsFeedback && (
-              <div
-                className={`p-4 rounded-xl mb-6 text-xs flex items-center gap-2.5 ${
-                  adminCredsFeedback.isError
-                    ? 'bg-red-950/50 border border-red-500/40 text-red-200'
-                    : 'bg-emerald-950/50 border border-emerald-500/40 text-emerald-200'
-                }`}
-              >
-                {adminCredsFeedback.isError ? (
-                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-                ) : (
-                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                )}
-                <span>{adminCredsFeedback.message}</span>
-              </div>
-            )}
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                setAdminCredsFeedback(null);
-
-                if (adminNewPass !== adminConfirmPass) {
-                  setAdminCredsFeedback({
-                    isError: true,
-                    message: 'La nueva contraseña y su confirmación no coinciden.',
-                  });
-                  return;
-                }
-
-                const res = updateAdminCredentials(adminCurrentPass, adminUserForm, adminNewPass, adminEmailForm);
-                if (res.success) {
-                  const refreshed = getStoredAdminCredentials();
-                  setAdminCreds(refreshed);
-                  setAdminCurrentPass('');
-                  setAdminNewPass('');
-                  setAdminConfirmPass('');
-                  setAdminCredsFeedback({
-                    isError: false,
-                    message: res.message,
-                  });
-                  setTimeout(() => setAdminCredsFeedback(null), 5000);
-                } else {
-                  setAdminCredsFeedback({
-                    isError: true,
-                    message: res.message,
-                  });
-                }
-              }}
-              className="space-y-5"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs uppercase font-mono tracking-wider text-zinc-400 mb-1.5">
-                    Nuevo Nombre de Usuario Administrador
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={adminUserForm}
-                    onChange={(e) => setAdminUserForm(e.target.value)}
-                    placeholder="ej. admi o fotografo"
-                    className="w-full bg-[#181a1f] border border-zinc-700 focus:border-amber-500 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none"
-                  />
-                  <span className="text-[10px] text-zinc-500 font-mono mt-1 block">
-                    Nombre con el que iniciarás sesión en el backend.
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block text-xs uppercase font-mono tracking-wider text-zinc-400 mb-1.5">
-                    Correo Electrónico de Notificaciones
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={adminEmailForm}
-                    onChange={(e) => setAdminEmailForm(e.target.value)}
-                    placeholder="casm830903@gmail.com"
-                    className="w-full bg-[#181a1f] border border-zinc-700 focus:border-amber-500 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none"
-                  />
-                  <span className="text-[10px] text-zinc-500 font-mono mt-1 block">
-                    Para recuperación y recepción de avisos.
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                <div>
-                  <label className="block text-xs uppercase font-mono tracking-wider text-zinc-400 mb-1.5">
-                    Contraseña Actual <span className="text-amber-400">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showCurrentPass ? 'text' : 'password'}
-                      required
-                      value={adminCurrentPass}
-                      onChange={(e) => setAdminCurrentPass(e.target.value)}
-                      placeholder="Contraseña actual requerida"
-                      className="w-full bg-[#181a1f] border border-zinc-700 focus:border-amber-500 rounded-xl px-4 py-2.5 pr-10 text-xs text-white font-mono focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowCurrentPass(!showCurrentPass)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 hover:text-zinc-300"
-                    >
-                      {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs uppercase font-mono tracking-wider text-zinc-400 mb-1.5">
-                    Nueva Contraseña <span className="text-amber-400">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showNewPass ? 'text' : 'password'}
-                      required
-                      value={adminNewPass}
-                      onChange={(e) => setAdminNewPass(e.target.value)}
-                      placeholder="Mínimo 6 caracteres"
-                      className="w-full bg-[#181a1f] border border-zinc-700 focus:border-amber-500 rounded-xl px-4 py-2.5 pr-10 text-xs text-white font-mono focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPass(!showNewPass)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 hover:text-zinc-300"
-                    >
-                      {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs uppercase font-mono tracking-wider text-zinc-400 mb-1.5">
-                    Confirmar Nueva Contraseña <span className="text-amber-400">*</span>
-                  </label>
-                  <input
-                    type={showNewPass ? 'text' : 'password'}
-                    required
-                    value={adminConfirmPass}
-                    onChange={(e) => setAdminConfirmPass(e.target.value)}
-                    placeholder="Repite la nueva contraseña"
-                    className="w-full bg-[#181a1f] border border-zinc-700 focus:border-amber-500 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end pt-3">
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>Guardar Nuevas Credenciales Maestras</span>
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* SECTION B: COLLABORATORS & USERS MANAGEMENT */}
+          {/* COLLABORATORS & USERS MANAGEMENT */}
           <div className="p-6 sm:p-8 rounded-3xl bg-[#121316] border border-white/5 space-y-6 shadow-2xl">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/5 pb-5">
               <div>
@@ -4548,7 +4853,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             <option value="asistente">Asistente</option>
                             <option value="editor">Editor</option>
                             <option value="cliente">Cliente</option>
-                            <option value="admin">Administrador</option>
                           </select>
                         </div>
 
@@ -4724,7 +5028,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         <option value="asistente">Asistente de Iluminación</option>
                         <option value="editor">Editor de Postproducción</option>
                         <option value="cliente">Cliente Exclusivo</option>
-                        <option value="admin">Administrador Secundario</option>
                       </select>
                     </div>
 
@@ -4923,15 +5226,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   onSubmit={(e) => {
                     e.preventDefault();
                     try {
-                      if (editingUser.id === DEFAULT_PHOTOGRAPHER_PROFILE.id) {
-                        saveAdminCredentials({
-                          username: editUserForm.email.split('@')[0] || 'admi',
-                          email: editUserForm.email.trim(),
-                          password: editUserForm.password || 'Mar.830903',
-                          name: editUserForm.name.trim(),
-                        });
-                      }
-
                       updateUserProfile(editingUser.id, {
                         name: editUserForm.name.trim(),
                         email: editUserForm.email.trim(),
@@ -5064,7 +5358,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         <option value="asistente">Asistente de Iluminación</option>
                         <option value="editor">Editor de Postproducción</option>
                         <option value="cliente">Cliente Exclusivo</option>
-                        <option value="admin">Administrador Secundario</option>
                       </select>
                     </div>
 
@@ -5181,6 +5474,384 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB 10: HIDDEN SUPER ADMIN DATABASE MANAGEMENT */}
+      {activeTab === 'superAdmin' && isSuperAdmin && (
+        <div className="space-y-8 animate-fadeIn">
+          <div className="p-6 sm:p-8 rounded-3xl bg-[#121316] border border-red-500/30 space-y-6 shadow-2xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-5">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-300 text-[10px] uppercase font-mono tracking-widest mb-1.5">
+                  <Database className="w-3 h-3" />
+                  <span>Consola Privada de Base de Datos</span>
+                </div>
+                <h3 className="font-editorial text-2xl sm:text-3xl text-white font-medium">
+                  Super Administrador · Mantenimiento de Firestore
+                </h3>
+                <p className="text-xs text-zinc-400 font-light mt-1">
+                  Monitorea el consumo real en Firestore y ejecuta limpiezas totales o restablecimiento de fábrica del sitio.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={isLoadingDbStats}
+                onClick={async () => {
+                  setIsLoadingDbStats(true);
+                  try {
+                    const stats = await getDatabaseStatsFromCloud();
+                    setDbStats(stats);
+                  } finally {
+                    setIsLoadingDbStats(false);
+                  }
+                }}
+                className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-mono uppercase tracking-wider text-zinc-200 flex items-center gap-2 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingDbStats ? 'animate-spin text-amber-400' : ''}`} />
+                <span>{isLoadingDbStats ? 'Calculando...' : 'Refrescar Estadísticas'}</span>
+              </button>
+            </div>
+
+            {superAdminFeedback && (
+              <div
+                className={`p-4 rounded-xl text-xs flex items-center gap-2.5 ${
+                  superAdminFeedback.isError
+                    ? 'bg-red-950/50 border border-red-500/40 text-red-200'
+                    : 'bg-emerald-950/50 border border-emerald-500/40 text-emerald-200'
+                }`}
+              >
+                {superAdminFeedback.isError ? (
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                ) : (
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                )}
+                <span>{superAdminFeedback.message}</span>
+              </div>
+            )}
+
+            {/* DB Usage Summary */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="p-4 rounded-2xl bg-black/40 border border-white/5">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block">
+                    Documentos Totales
+                  </span>
+                  <span className="font-editorial text-3xl text-white">
+                    {dbStats ? dbStats.totalDocs : '—'}
+                  </span>
+                </div>
+                <div className="p-4 rounded-2xl bg-black/40 border border-white/5">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block">
+                    Espacio Ocupado (Firestore)
+                  </span>
+                  <span className="font-editorial text-3xl text-amber-300">
+                    {dbStats ? `${(dbStats.totalBytes / 1024).toFixed(2)} KB` : '—'}
+                  </span>
+                </div>
+                <div className="p-4 rounded-2xl bg-black/40 border border-white/5">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block">
+                    Uso del Plan Gratuito (1 GiB)
+                  </span>
+                  <span className="font-editorial text-3xl text-emerald-400">
+                    {dbStats
+                      ? `${((dbStats.totalBytes / (1024 * 1024 * 1024)) * 100).toFixed(4)}%`
+                      : '—'}
+                  </span>
+                </div>
+              </div>
+
+              {dbStats && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {dbStats.collections.map((c) => (
+                    <div
+                      key={c.collection}
+                      className="p-3 rounded-xl bg-[#181a1f] border border-white/5 space-y-1"
+                    >
+                      <span className="text-[10px] font-mono uppercase text-zinc-400 block truncate">
+                        {c.collection}
+                      </span>
+                      <p className="text-sm font-semibold text-white">{c.count} docs</p>
+                      <p className="text-[10px] font-mono text-zinc-500">
+                        {(c.bytes / 1024).toFixed(2)} KB
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Danger Zone Actions */}
+            <div className="pt-4 border-t border-white/5 space-y-4">
+              <div className="flex items-center gap-2 text-red-400 text-xs font-mono uppercase tracking-wider">
+                <AlertTriangle className="w-4 h-4" />
+                <span>Zona de Limpieza y Restablecimiento</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-5 rounded-2xl bg-red-950/20 border border-red-500/25 flex flex-col justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <h4 className="font-editorial text-lg text-white">Vaciar Base de Datos</h4>
+                    <p className="text-xs text-zinc-400 font-light leading-relaxed">
+                      Elimina todas las galerías, cotizaciones, registros de descargas, favoritos y usuarios secundarios de Firestore (sin crear demos).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSuperAdminConfirmText('');
+                      setSuperAdminActionModal('wipe');
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl bg-red-600/20 hover:bg-red-600/35 border border-red-500/40 text-red-200 text-xs font-mono uppercase tracking-wider transition-colors"
+                  >
+                    Vaciar Firestore
+                  </button>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-amber-950/20 border border-amber-500/25 flex flex-col justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <h4 className="font-editorial text-lg text-white">Restablecer Sitio (Limpio)</h4>
+                    <p className="text-xs text-zinc-400 font-light leading-relaxed">
+                      Borra la base de datos y restaura textos, colores y tema original de fábrica sin agregar galerías de demostración.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSuperAdminConfirmText('');
+                      setSuperAdminActionModal('factory-empty');
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 text-xs font-mono uppercase tracking-wider transition-colors"
+                  >
+                    Restablecer sin Demos
+                  </button>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <h4 className="font-editorial text-lg text-white">Restablecer + Galerías Demo</h4>
+                    <p className="text-xs text-zinc-400 font-light leading-relaxed">
+                      Deja el sitio exactamente como el día uno: restaura textos, apariencia original y las colecciones de demostración iniciales.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSuperAdminConfirmText('');
+                      setSuperAdminActionModal('factory-demo');
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-mono uppercase tracking-wider transition-colors"
+                  >
+                    Restablecer Completo
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CONFIRM GALLERY DELETE (FREES FIRESTORE SPACE) */}
+      {galleryToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+          <div className="w-full max-w-md bg-[#141518] border border-red-500/30 rounded-3xl p-6 space-y-5 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-editorial text-xl text-white">Eliminar Galería</h4>
+                <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                  Se eliminará <strong className="text-white">"{galleryToDelete.title}"</strong> ({galleryToDelete.photos.length} fotos) y se liberará inmediatamente su espacio en Firestore. Tus archivos originales en Google Drive permanecen intactos.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isDeletingGallery}
+                onClick={() => setGalleryToDelete(null)}
+                className="px-4 py-2 rounded-xl text-xs font-mono uppercase text-zinc-400 hover:text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingGallery}
+                onClick={handleConfirmDeleteGallery}
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-semibold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeletingGallery ? 'Eliminando...' : 'Eliminar y Liberar BD'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: LINK GOOGLE DRIVE FOLDER TO EXISTING GALLERY */}
+      {driveLinkPromptGallery && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+          <div className="w-full max-w-lg bg-[#141518] border border-amber-500/30 rounded-3xl p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/5 pb-3">
+              <div className="flex items-center gap-2.5">
+                <FolderSync className="w-5 h-5 text-amber-400" />
+                <h4 className="font-editorial text-xl text-white">
+                  Vincular Carpeta de Google Drive
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDriveLinkPromptGallery(null)}
+                className="text-zinc-400 hover:text-white px-2"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              La colección <strong className="text-white">"{driveLinkPromptGallery.title}"</strong> aún no tiene un ID de carpeta guardado. Pega el enlace o ID de la carpeta de Drive para actualizarla ahora y en el futuro con 1 clic.
+            </p>
+
+            <input
+              type="text"
+              autoFocus
+              value={driveLinkPromptInput}
+              onChange={(e) => setDriveLinkPromptInput(e.target.value)}
+              placeholder="Ej. 1J-QH-F6-E5tg3iLAD8knUiXfmfk2K6tQ o URL de carpeta"
+              className="w-full bg-[#181a1f] border border-zinc-700 focus:border-amber-500 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none"
+            />
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDriveLinkPromptGallery(null)}
+                className="px-4 py-2 rounded-xl text-xs font-mono uppercase text-zinc-400 hover:text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!driveLinkPromptInput.trim() || syncingGalleryId === driveLinkPromptGallery.id}
+                onClick={() => handleSyncGalleryFromDrive(driveLinkPromptGallery, driveLinkPromptInput)}
+                className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-semibold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${syncingGalleryId === driveLinkPromptGallery.id ? 'animate-spin' : ''}`} />
+                <span>Vincular y Actualizar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: SUPER ADMIN WIPE / FACTORY RESET CONFIRMATION */}
+      {superAdminActionModal && isSuperAdmin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+          <div className="w-full max-w-md bg-[#141518] border border-red-500/40 rounded-3xl p-6 space-y-5 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-editorial text-xl text-white">
+                  {superAdminActionModal === 'wipe'
+                    ? 'Confirmar Vaciado de Base de Datos'
+                    : superAdminActionModal === 'factory-empty'
+                    ? 'Confirmar Restablecimiento (Sin Demos)'
+                    : 'Confirmar Restablecimiento Completo'}
+                </h4>
+                <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                  Esta acción modificará Firestore de forma inmediata y no se puede deshacer. Escribe <code className="text-red-300 font-mono font-bold">CONFIRMAR</code> para continuar.
+                </p>
+              </div>
+            </div>
+
+            <input
+              type="text"
+              autoFocus
+              value={superAdminConfirmText}
+              onChange={(e) => setSuperAdminConfirmText(e.target.value)}
+              placeholder="Escribe CONFIRMAR"
+              className="w-full bg-[#181a1f] border border-red-500/40 focus:border-red-400 rounded-xl px-4 py-2.5 text-xs text-white font-mono uppercase focus:outline-none"
+            />
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isWipingDb}
+                onClick={() => {
+                  setSuperAdminActionModal(null);
+                  setSuperAdminConfirmText('');
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-mono uppercase text-zinc-400 hover:text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isWipingDb || superAdminConfirmText.trim().toUpperCase() !== 'CONFIRMAR'}
+                onClick={async () => {
+                  setIsWipingDb(true);
+                  setSuperAdminFeedback(null);
+                  try {
+                    if (superAdminActionModal === 'wipe') {
+                      await wipeAllDatabaseCollectionsFromCloud();
+                    } else if (superAdminActionModal === 'factory-empty') {
+                      await factoryResetSiteInCloud(false);
+                    } else {
+                      await factoryResetSiteInCloud(true);
+                    }
+
+                    try {
+                      localStorage.removeItem('lente_abierto_galleries_v2');
+                      localStorage.removeItem('lente_abierto_inquiries_v2');
+                      localStorage.removeItem('lente_abierto_download_logs_v1');
+                      localStorage.removeItem('lente_abierto_favorite_logs_v1');
+                      localStorage.removeItem('lente_abierto_users_v2');
+                      localStorage.removeItem('lente_abierto_site_content_v2');
+                      localStorage.removeItem('lente_abierto_categories_v1');
+                    } catch {}
+
+                    const freshCms = resetSiteContent();
+                    setCmsContent(freshCms);
+                    if (onSaveSiteContent) {
+                      await onSaveSiteContent(freshCms);
+                    }
+                    setInquiries([]);
+                    setDownloadLogs([]);
+                    setFavoriteLogs([]);
+                    setUserList(getStoredUsers());
+
+                    const refreshedStats = await getDatabaseStatsFromCloud();
+                    setDbStats(refreshedStats);
+
+                    setSuperAdminFeedback({
+                      isError: false,
+                      message:
+                        superAdminActionModal === 'wipe'
+                          ? 'Base de datos vaciada correctamente en Firestore y caché local limpiada.'
+                          : 'Sitio restablecido a su estado de fábrica en Firestore.',
+                    });
+                    setSuperAdminActionModal(null);
+                    setSuperAdminConfirmText('');
+                  } catch (err: any) {
+                    console.error('Super admin DB operation error:', err);
+                    setSuperAdminFeedback({
+                      isError: true,
+                      message: err?.message || 'Error al ejecutar la operación en Firestore.',
+                    });
+                  } finally {
+                    setIsWipingDb(false);
+                  }
+                }}
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-semibold uppercase tracking-wider disabled:opacity-40"
+              >
+                {isWipingDb ? 'Ejecutando...' : 'Ejecutar Ahora'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

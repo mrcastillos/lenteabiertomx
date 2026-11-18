@@ -3,13 +3,14 @@ import { Lock, X, ShieldAlert, Eye, EyeOff, KeyRound, Sparkles, UserCheck } from
 import {
   authenticateUserForBackend,
   setAdminLoggedIn,
+  setSuperAdminLoggedIn,
   setCurrentUser,
 } from '../services/userService';
 
 interface AdminAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (isSuperAdmin?: boolean) => void;
 }
 
 export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
@@ -33,11 +34,17 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
     setTimeout(() => {
       const authResult = authenticateUserForBackend(username, password);
 
-      if (authResult.success && authResult.user) {
+      if (authResult.success) {
+        const superAdmin = Boolean(authResult.isSuperAdmin);
         setAdminLoggedIn(true);
-        setCurrentUser(authResult.user);
+        setSuperAdminLoggedIn(superAdmin);
+        if (!superAdmin && authResult.user) {
+          setCurrentUser(authResult.user);
+        }
+        setUsername('');
+        setPassword('');
         setIsLoading(false);
-        onSuccess();
+        onSuccess(superAdmin);
         onClose();
       } else {
         setIsLoading(false);
@@ -67,7 +74,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
 
           <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] uppercase font-mono tracking-widest mb-2">
             <KeyRound className="w-3 h-3" />
-            <span>Zona Restringida · Administrador</span>
+            <span>Zona Restringida · Gestión</span>
           </div>
 
           <h3 className="font-editorial text-2xl sm:text-3xl text-white font-medium">
@@ -81,7 +88,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-[11px] uppercase tracking-wider text-zinc-400 mb-1.5 font-mono">
-              Usuario de Administrador
+              Usuario o Correo Autorizado
             </label>
             <input
               type="text"
@@ -92,7 +99,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
                 setUsername(e.target.value);
                 if (error) setError(null);
               }}
-              placeholder="Ingresa tu usuario (ej. admi)"
+              placeholder="Usuario o correo de equipo"
               className="w-full bg-[#181a1f] border border-zinc-700 focus:border-amber-500/80 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 font-mono transition-all"
             />
           </div>

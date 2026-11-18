@@ -5,102 +5,19 @@ const STORAGE_KEY_USERS = 'lente_abierto_users_v2';
 const STORAGE_KEY_CURRENT_USER = 'lente_abierto_current_user_v2';
 const STORAGE_KEY_ADMIN_AUTH = 'lente_abierto_admin_session_v2';
 
-export interface AdminCredentials {
-  username: string;
-  password: string;
-  email: string;
-  name?: string;
-  updatedAt?: string;
-}
+const STORAGE_KEY_SUPER_ADMIN_AUTH = 'lente_abierto_super_admin_session_v1';
+const LEGACY_STORAGE_KEY_ADMIN_CREDS = 'lente_abierto_admin_creds_v2';
 
-const STORAGE_KEY_ADMIN_CREDS = 'lente_abierto_admin_creds_v2';
-
-export const DEFAULT_ADMIN_CREDENTIALS: AdminCredentials = {
-  username: 'admi',
-  password: 'Mar.830903',
-  email: 'casm830903@gmail.com',
-  name: 'Martín Castillo (Administrador Principal)',
-};
-
-// Backwards-compatible export
-export const ADMIN_CREDENTIALS = DEFAULT_ADMIN_CREDENTIALS;
-
-export function getStoredAdminCredentials(): AdminCredentials {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_ADMIN_CREDS);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY_ADMIN_CREDS, JSON.stringify(DEFAULT_ADMIN_CREDENTIALS));
-      return DEFAULT_ADMIN_CREDENTIALS;
-    }
-    const parsed = JSON.parse(raw);
-    return {
-      username: parsed.username || DEFAULT_ADMIN_CREDENTIALS.username,
-      password: parsed.password || DEFAULT_ADMIN_CREDENTIALS.password,
-      email: parsed.email || DEFAULT_ADMIN_CREDENTIALS.email,
-      name: parsed.name || DEFAULT_ADMIN_CREDENTIALS.name,
-      updatedAt: parsed.updatedAt,
-    };
-  } catch (e) {
-    console.error('Error reading admin credentials from storage', e);
-    return DEFAULT_ADMIN_CREDENTIALS;
+// Purge legacy exposed admin credentials if still present in localStorage
+try {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(LEGACY_STORAGE_KEY_ADMIN_CREDS);
   }
-}
+} catch {}
 
-export function saveAdminCredentials(creds: AdminCredentials): void {
-  try {
-    localStorage.setItem(
-      STORAGE_KEY_ADMIN_CREDS,
-      JSON.stringify({ ...creds, updatedAt: new Date().toISOString() })
-    );
-  } catch (e) {
-    console.error('Error saving admin credentials', e);
-  }
-}
-
-export function updateAdminCredentials(
-  currentPassword: string,
-  newUsername: string,
-  newPassword: string,
-  newEmail?: string
-): { success: boolean; message: string } {
-  const current = getStoredAdminCredentials();
-
-  if (currentPassword !== current.password) {
-    return {
-      success: false,
-      message: 'La contraseña actual ingresada es incorrecta. No se realizaron cambios.',
-    };
-  }
-
-  const cleanUser = newUsername.trim();
-  if (!cleanUser || cleanUser.length < 3) {
-    return {
-      success: false,
-      message: 'El nuevo nombre de usuario debe tener al menos 3 caracteres.',
-    };
-  }
-
-  if (!newPassword || newPassword.length < 6) {
-    return {
-      success: false,
-      message: 'La nueva contraseña debe tener al menos 6 caracteres.',
-    };
-  }
-
-  const updated: AdminCredentials = {
-    username: cleanUser,
-    password: newPassword,
-    email: newEmail?.trim() || current.email,
-    name: current.name,
-    updatedAt: new Date().toISOString(),
-  };
-
-  saveAdminCredentials(updated);
-  return {
-    success: true,
-    message: 'Credenciales maestras de administrador actualizadas con éxito.',
-  };
-}
+// Hidden Super Admin credentials (never listed in UI, backend users list, or Firestore)
+const HIDDEN_SUPER_ADMIN_USER = 'admin';
+const HIDDEN_SUPER_ADMIN_PASS = '#M@r.830903!';
 
 export function isAdminLoggedIn(): boolean {
   try {
@@ -116,34 +33,53 @@ export function setAdminLoggedIn(status: boolean): void {
       sessionStorage.setItem(STORAGE_KEY_ADMIN_AUTH, 'true');
     } else {
       sessionStorage.removeItem(STORAGE_KEY_ADMIN_AUTH);
+      sessionStorage.removeItem(STORAGE_KEY_SUPER_ADMIN_AUTH);
     }
   } catch (e) {
     console.error('Error setting admin session', e);
   }
 }
 
+export function isSuperAdminLoggedIn(): boolean {
+  try {
+    return sessionStorage.getItem(STORAGE_KEY_SUPER_ADMIN_AUTH) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function setSuperAdminLoggedIn(status: boolean): void {
+  try {
+    if (status) {
+      sessionStorage.setItem(STORAGE_KEY_SUPER_ADMIN_AUTH, 'true');
+    } else {
+      sessionStorage.removeItem(STORAGE_KEY_SUPER_ADMIN_AUTH);
+    }
+  } catch (e) {
+    console.error('Error setting super admin session', e);
+  }
+}
+
+export function authenticateHiddenSuperAdmin(user: string, pass: string): boolean {
+  return user.trim().toLowerCase() === HIDDEN_SUPER_ADMIN_USER && pass.trim() === HIDDEN_SUPER_ADMIN_PASS;
+}
+
 export function authenticateUserForBackend(
   user: string,
   pass: string
-): { success: boolean; user?: UserProfile; message?: string } {
+): { success: boolean; user?: UserProfile; isSuperAdmin?: boolean; message?: string } {
   const cleanUser = user.trim().toLowerCase();
   const cleanPass = pass.trim();
 
-  // 1. Check Master Admin Credentials (admi / Mar.830903)
-  const masterCreds = getStoredAdminCredentials();
-  const isMasterUser =
-    cleanUser === masterCreds.username.trim().toLowerCase() ||
-    cleanUser === masterCreds.email.trim().toLowerCase();
-  const isMasterPass = cleanPass === masterCreds.password.trim();
-
-  if (isMasterUser && isMasterPass) {
-    const currentPhotographer = getCurrentUser() || DEFAULT_PHOTOGRAPHER_PROFILE;
-    return { success: true, user: currentPhotographer };
+  // 1. Check Hidden Super Administrator (never listed in backend or frontend)
+  if (authenticateHiddenSuperAdmin(user, pass)) {
+    return { success: true, isSuperAdmin: true };
   }
 
-  // 2. Check all registered users in getStoredUsers()
+  // 2. Check registered team/photographer users in getStoredUsers()
   const users = getStoredUsers();
   const matched = users.find((u) => {
+    if (u.role === 'cliente') return false;
     const emailMatch = u.email && u.email.trim().toLowerCase() === cleanUser;
     const nameMatch = u.name && u.name.trim().toLowerCase() === cleanUser;
     const prefixMatch =
@@ -158,35 +94,10 @@ export function authenticateUserForBackend(
 
     const passwordMatches =
       (userPass && userPass === cleanPass) ||
-      (userPin && userPin === cleanPass) ||
-      (userPass && userPass.toLowerCase() === cleanPass.toLowerCase());
+      (userPin && userPin === cleanPass);
 
     if (passwordMatches) {
-      return { success: true, user: matched };
-    }
-  }
-
-  // 3. Fallback for demo / demo user: auto-provision if requested
-  if (cleanUser === 'demo' && cleanPass === 'demo') {
-    const existingDemo = users.find(
-      (u) =>
-        u.email.toLowerCase() === 'demo@lenteabierto.mx' ||
-        u.name.toLowerCase() === 'demo' ||
-        u.email.toLowerCase() === 'demo'
-    );
-    if (existingDemo) {
-      return { success: true, user: existingDemo };
-    } else {
-      const demoUser = addUser({
-        name: 'Usuario Demo',
-        email: 'demo@lenteabierto.mx',
-        role: 'colaborador',
-        password: 'demo',
-        phone: '+52 777 374 3420',
-        location: 'México',
-        bio: 'Cuenta de colaboración y acceso técnico',
-      });
-      return { success: true, user: demoUser };
+      return { success: true, user: matched, isSuperAdmin: false };
     }
   }
 
@@ -234,6 +145,24 @@ Ha sido galardonado en certámenes internacionales de fotografía documental y s
   createdAt: '2023-01-15T00:00:00Z',
 };
 
+function filterOutHiddenAdmin(list: UserProfile[]): UserProfile[] {
+  return list.filter((u) => {
+    const uname = (u.name || '').trim().toLowerCase();
+    const uemail = (u.email || '').trim().toLowerCase();
+    const uid = (u.id || '').trim().toLowerCase();
+    return (
+      uname !== 'admin' &&
+      uname !== 'admi' &&
+      uemail !== 'admin' &&
+      uemail !== 'admi' &&
+      !uemail.startsWith('admin@') &&
+      uid !== 'usr-admin' &&
+      uid !== 'admin' &&
+      uid !== 'admi'
+    );
+  });
+}
+
 export function getStoredUsers(): UserProfile[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_USERS);
@@ -242,7 +171,8 @@ export function getStoredUsers(): UserProfile[] {
       return [DEFAULT_PHOTOGRAPHER_PROFILE];
     }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [DEFAULT_PHOTOGRAPHER_PROFILE];
+    const cleaned = Array.isArray(parsed) ? filterOutHiddenAdmin(parsed) : [];
+    return cleaned.length > 0 ? cleaned : [DEFAULT_PHOTOGRAPHER_PROFILE];
   } catch {
     return [DEFAULT_PHOTOGRAPHER_PROFILE];
   }
@@ -282,7 +212,8 @@ export function setCurrentUser(user: UserProfile | null): void {
 
 export function saveStoredUsers(users: UserProfile[]): void {
   try {
-    localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+    const cleaned = filterOutHiddenAdmin(users);
+    localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(cleaned));
   } catch (e) {
     console.error('Error saving users to storage', e);
   }
@@ -303,8 +234,14 @@ export function addUser(data: {
   avatarUrl?: string;
   assignedGalleries?: string[];
 }): UserProfile {
+  const cleanNameLower = data.name.trim().toLowerCase();
+  const cleanEmailLower = data.email.trim().toLowerCase();
+  if (cleanNameLower === 'admin' || cleanNameLower === 'admi' || cleanEmailLower === 'admin' || cleanEmailLower.startsWith('admin@')) {
+    throw new Error('Ese nombre de usuario está reservado por el sistema.');
+  }
+
   const users = getStoredUsers();
-  const existing = users.find((u) => u.email.toLowerCase() === data.email.toLowerCase());
+  const existing = users.find((u) => u.email.toLowerCase() === cleanEmailLower);
   if (existing) {
     throw new Error('Ya existe un usuario registrado con este correo electrónico.');
   }
@@ -387,8 +324,12 @@ export function registerUser(data: {
 }
 
 export function loginUser(email: string): UserProfile {
+  const clean = email.trim().toLowerCase();
+  if (clean === 'admin' || clean === 'admi' || clean.startsWith('admin@')) {
+    throw new Error('Acceso reservado.');
+  }
   const users = getStoredUsers();
-  const found = users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
+  const found = users.find((u) => u.email.toLowerCase() === clean);
   if (!found) {
     // If not found and logging into demo, create a client profile
     const client: UserProfile = {
@@ -420,6 +361,12 @@ export function updateUserProfile(id: string, updates: Partial<UserProfile>): Us
   const index = users.findIndex((u) => u.id === id);
   if (index === -1) {
     throw new Error('Usuario no encontrado');
+  }
+
+  const nextName = (updates.name || '').trim().toLowerCase();
+  const nextEmail = (updates.email || '').trim().toLowerCase();
+  if (nextName === 'admin' || nextName === 'admi' || nextEmail === 'admin' || nextEmail.startsWith('admin@')) {
+    throw new Error('Ese nombre o correo está reservado por el sistema.');
   }
 
   const updated: UserProfile = { ...users[index], ...updates };

@@ -90,10 +90,28 @@ export function subscribeToGalleries(
     async (snapshot) => {
       try {
         if (snapshot.empty) {
+          // Check whether galleries were already initialized/wiped so deleting the last gallery
+          // actually keeps Firestore empty and freed instead of re-seeding demo galleries.
+          const siteSnap = await getDoc(doc(db, 'siteConfig', 'main')).catch(() => null);
+          const alreadyInitialized = Boolean(siteSnap?.exists() && siteSnap.data()?.galleriesInitialized);
+
+          if (alreadyInitialized) {
+            try {
+              localStorage.setItem('lente_abierto_galleries_v2', JSON.stringify([]));
+            } catch {}
+            onUpdate([]);
+            return;
+          }
+
           console.log('Seeding initial galleries into Firestore...');
           for (const g of INITIAL_GALLERIES) {
             await setDoc(doc(db, 'galleries', g.id), sanitizePayload(g));
           }
+          await setDoc(
+            doc(db, 'siteConfig', 'main'),
+            { galleriesInitialized: true },
+            { merge: true }
+          ).catch(() => {});
           onUpdate(INITIAL_GALLERIES);
           return;
         }
@@ -145,6 +163,12 @@ export async function deleteGalleryFromCloud(galleryId: string): Promise<void> {
   const path = `galleries/${galleryId}`;
   try {
     await deleteDoc(doc(db, 'galleries', galleryId));
+    // Ensure galleriesInitialized stays true so deleting the last gallery won't auto-reseed demos
+    await setDoc(
+      doc(db, 'siteConfig', 'main'),
+      { galleriesInitialized: true },
+      { merge: true }
+    ).catch(() => {});
   } catch (err) {
     handleFirestoreError(err, OperationType.DELETE, path);
   }
@@ -173,7 +197,23 @@ export function subscribeToSiteContent(
         onUpdate(DEFAULT_SITE_CONTENT);
         return;
       }
-      const data = docSnap.data() as SiteContentConfig;
+      const rawData = docSnap.data() as SiteContentConfig;
+      const data: SiteContentConfig = {
+        ...DEFAULT_SITE_CONTENT,
+        ...rawData,
+        appearance: { ...DEFAULT_SITE_CONTENT.appearance!, ...(rawData.appearance || {}) },
+        general: { ...DEFAULT_SITE_CONTENT.general!, ...(rawData.general || {}) },
+        hero: { ...DEFAULT_SITE_CONTENT.hero, ...(rawData.hero || {}) },
+        announcement: { ...DEFAULT_SITE_CONTENT.announcement, ...(rawData.announcement || {}) },
+        biography: { ...DEFAULT_SITE_CONTENT.biography, ...(rawData.biography || {}) },
+        contact: {
+          ...DEFAULT_SITE_CONTENT.contact,
+          ...(rawData.contact || {}),
+          pricingPackages: Array.isArray(rawData.contact?.pricingPackages)
+            ? rawData.contact.pricingPackages
+            : DEFAULT_SITE_CONTENT.contact.pricingPackages,
+        },
+      };
       // Sync local cache so other tabs/reloads on this device stay in sync
       try {
         localStorage.setItem('lente_abierto_site_content_v2', JSON.stringify(data));
@@ -319,6 +359,22 @@ export async function syncAllUsersToCloud(users: UserProfile[]): Promise<void> {
   }
 }
 
+function isLegacyVisibleAdminUser(u: Partial<UserProfile>): boolean {
+  const uname = (u.name || '').trim().toLowerCase();
+  const uemail = (u.email || '').trim().toLowerCase();
+  const uid = (u.id || '').trim().toLowerCase();
+  return (
+    uname === 'admin' ||
+    uname === 'admi' ||
+    uemail === 'admin' ||
+    uemail === 'admi' ||
+    uemail.startsWith('admin@') ||
+    uid === 'usr-admin' ||
+    uid === 'admin' ||
+    uid === 'admi'
+  );
+}
+
 export function subscribeToUsers(
   onUpdate: (users: UserProfile[]) => void
 ) {
@@ -339,7 +395,13 @@ export function subscribeToUsers(
 
         const users: UserProfile[] = [];
         snapshot.forEach((docSnap) => {
-          users.push(docSnap.data() as UserProfile);
+          const userData = docSnap.data() as UserProfile;
+          if (isLegacyVisibleAdminUser(userData)) {
+            // Auto-purge legacy visible 'admin'/'admi' doc from Firestore
+            deleteDoc(doc(db, 'users', docSnap.id)).catch(() => {});
+            return;
+          }
+          users.push(userData);
         });
 
         try {
@@ -355,4 +417,116 @@ export function subscribeToUsers(
       console.warn('Users cloud subscription error:', err);
     }
   );
+}
+
+// ----------------------------------------------------------------------
+// SUPER ADMIN DATABASE STATS, WIPE & FACTORY RESET
+// ----------------------------------------------------------------------
+
+export interface DatabaseCollectionStat {
+  collection: string;
+  count: number;
+  bytes: number;
+}
+
+export async function getDatabaseStatsFromCloud(): Promise<{
+  collections: DatabaseCollectionStat[];
+  totalDocs: number;
+  totalBytes: number;
+}> {
+  if (!db) {
+    return { collections: [], totalDocs: 0, totalBytes: 0 };
+  }
+  const names = ['galleries', 'users', 'siteConfig', 'inquiries', 'downloadLogs', 'favoriteLogs'];
+  const collections: DatabaseCollectionStat[] = [];
+  let totalDocs = 0;
+  let totalBytes = 0;
+
+  for (const name of names) {
+    try {
+      const snap = await getDocs(collection(db, name));
+      let colBytes = 0;
+      snap.forEach((d) => {
+        const json = JSON.stringify(d.data());
+        colBytes += new TextEncoder().encode(json).length;
+      });
+      collections.push({
+        collection: name,
+        count: snap.size,
+        bytes: colBytes,
+      });
+      totalDocs += snap.size;
+      totalBytes += colBytes;
+    } catch (err) {
+      console.warn(`Error reading stats for ${name}:`, err);
+      collections.push({ collection: name, count: 0, bytes: 0 });
+    }
+  }
+
+  return { collections, totalDocs, totalBytes };
+}
+
+async function clearCollectionDocs(collectionName: string): Promise<number> {
+  if (!db) return 0;
+  const snap = await getDocs(collection(db, collectionName));
+  let deleted = 0;
+  for (const d of snap.docs) {
+    try {
+      await deleteDoc(doc(db, collectionName, d.id));
+      deleted++;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `${collectionName}/${d.id}`);
+    }
+  }
+  return deleted;
+}
+
+export async function wipeAllDatabaseCollectionsFromCloud(): Promise<void> {
+  if (!db) return;
+  const targetCollections = ['galleries', 'inquiries', 'downloadLogs', 'favoriteLogs', 'users'];
+  for (const col of targetCollections) {
+    await clearCollectionDocs(col);
+  }
+  // Keep siteConfig/main initialized so empty galleries do NOT auto-reseed demos
+  await setDoc(
+    doc(db, 'siteConfig', 'main'),
+    sanitizePayload({
+      ...DEFAULT_SITE_CONTENT,
+      id: 'main',
+      galleriesInitialized: true,
+      updatedAt: new Date().toISOString(),
+    })
+  );
+  // Restore only the primary photographer profile in users so the app has a valid profile base
+  await setDoc(
+    doc(db, 'users', DEFAULT_PHOTOGRAPHER_PROFILE.id),
+    sanitizePayload(DEFAULT_PHOTOGRAPHER_PROFILE)
+  );
+}
+
+export async function factoryResetSiteInCloud(reseedDemoGalleries = false): Promise<void> {
+  if (!db) return;
+  const targetCollections = ['galleries', 'inquiries', 'downloadLogs', 'favoriteLogs', 'users'];
+  for (const col of targetCollections) {
+    await clearCollectionDocs(col);
+  }
+
+  const resetConfig = sanitizePayload({
+    ...DEFAULT_SITE_CONTENT,
+    id: 'main',
+    galleriesInitialized: true,
+    updatedAt: new Date().toISOString(),
+  });
+  await setDoc(doc(db, 'siteConfig', 'main'), resetConfig);
+
+  await setDoc(
+    doc(db, 'users', DEFAULT_PHOTOGRAPHER_PROFILE.id),
+    sanitizePayload(DEFAULT_PHOTOGRAPHER_PROFILE)
+  );
+
+  if (reseedDemoGalleries) {
+    for (const g of INITIAL_GALLERIES) {
+      await setDoc(doc(db, 'galleries', g.id), sanitizePayload(g));
+    }
+  }
 }

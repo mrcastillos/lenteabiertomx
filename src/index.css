@@ -1,12 +1,133 @@
 @import "tailwindcss";
 
+:root {
+  --theme-bg: #0c0d0e;
+  --theme-surface: #121316;
+  --theme-surface-alt: #181a1f;
+  --theme-text: #e6e8eb;
+  --theme-heading: #ffffff;
+  --theme-muted: #a1a1aa;
+  --theme-accent: #f59e0b;
+  --theme-accent-contrast: #000000;
+  --theme-border: rgba(255, 255, 255, 0.08);
+}
+
 @layer base {
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: var(--theme-bg);
+    color: var(--theme-text);
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
   h1, h2, h3, .font-editorial {
     font-family: 'Cormorant Garamond', Georgia, serif;
   }
+}
+
+/* Dynamic Public Site Theme Overrides (scoped outside AdminPanel) */
+.site-theme-scope {
+  background-color: var(--theme-bg) !important;
+  color: var(--theme-text) !important;
+}
+
+.site-theme-scope header,
+.site-theme-scope footer,
+.site-theme-scope [class*="bg-[#121316]"],
+.site-theme-scope [class*="bg-[#141518]"],
+.site-theme-scope [class*="bg-[#090a0c]"] {
+  background-color: var(--theme-surface) !important;
+  border-color: var(--theme-border) !important;
+}
+
+.site-theme-scope [class*="bg-[#0c0d0e]"] {
+  background-color: var(--theme-bg) !important;
+}
+
+.site-theme-scope [class*="bg-[#181a1f]"] {
+  background-color: var(--theme-surface-alt) !important;
+  border-color: var(--theme-border) !important;
+  color: var(--theme-text) !important;
+}
+
+.site-theme-scope h1,
+.site-theme-scope h2,
+.site-theme-scope h3,
+.site-theme-scope h4,
+.site-theme-scope h5,
+.site-theme-scope .font-editorial,
+.site-theme-scope .text-white {
+  color: var(--theme-heading) !important;
+}
+
+.site-theme-scope .text-zinc-200,
+.site-theme-scope .text-zinc-300 {
+  color: var(--theme-text) !important;
+}
+
+.site-theme-scope .text-zinc-400,
+.site-theme-scope .text-zinc-500 {
+  color: var(--theme-muted) !important;
+}
+
+.site-theme-scope .border-white\/5,
+.site-theme-scope .border-white\/10 {
+  border-color: var(--theme-border) !important;
+}
+
+/* Accent Color Mapping */
+.site-theme-scope .text-amber-400,
+.site-theme-scope .text-amber-300,
+.site-theme-scope .text-amber-500 {
+  color: var(--theme-accent) !important;
+}
+
+.site-theme-scope .bg-amber-500,
+.site-theme-scope .bg-amber-400 {
+  background-color: var(--theme-accent) !important;
+  color: var(--theme-accent-contrast) !important;
+}
+
+.site-theme-scope .bg-amber-500 * ,
+.site-theme-scope .bg-amber-400 * {
+  color: var(--theme-accent-contrast) !important;
+}
+
+.site-theme-scope [class*="bg-amber-500/"],
+.site-theme-scope [class*="bg-amber-400/"] {
+  background-color: color-mix(in srgb, var(--theme-accent) 14%, transparent) !important;
+}
+
+.site-theme-scope [class*="border-amber-500/"],
+.site-theme-scope [class*="border-amber-400/"] {
+  border-color: color-mix(in srgb, var(--theme-accent) 38%, transparent) !important;
+}
+
+.site-theme-scope .hover\:text-amber-400:hover,
+.site-theme-scope .hover\:text-amber-300:hover {
+  color: var(--theme-accent) !important;
+}
+
+/* Light-theme subtle surface & photo-overlay protection */
+.site-theme-scope[data-theme-light="true"] [class*="bg-white/5"],
+.site-theme-scope[data-theme-light="true"] [class*="bg-white/[0.02]"] {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+.site-theme-scope[data-theme-light="true"] [class*="bg-black/40"],
+.site-theme-scope[data-theme-light="true"] [class*="bg-black/30"] {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Keep text over dark image overlays bright even in light themes */
+.site-theme-scope .bg-gradient-to-t ~ div,
+.site-theme-scope [class*="bg-black/70"],
+.site-theme-scope [class*="bg-black/60"] {
+  color: #ffffff !important;
+}
+
+.site-theme-scope [class*="bg-black/70"] *,
+.site-theme-scope [class*="bg-black/60"] * {
+  color: #ffffff !important;
 }
 
 /* Watermark protection overlay */
@@ -28,13 +149,13 @@
   pointer-events: auto;
 }
 
-/* Custom smooth dark scrollbar */
+/* Custom smooth scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0f1012;
+  background: var(--theme-bg);
 }
 ::-webkit-scrollbar-thumb {
   background: #272a30;
