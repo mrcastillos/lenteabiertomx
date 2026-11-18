@@ -269,6 +269,8 @@ export default function App() {
             onBack={() => setSelectedGallery(null)}
             favorites={favorites}
             onToggleFavorite={handleToggleFavorite}
+            brandName={siteContent.general?.brandName}
+            brandLogoUrl={siteContent.general?.logoIconUrl}
           />
         ) : (
           <>

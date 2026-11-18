@@ -18,12 +18,26 @@ export interface Photo {
   dateAdded: string;
 }
 
+export type WatermarkStyle =
+  | 'diagonal-pattern'
+  | 'center-stamp'
+  | 'center-text'
+  | 'bottom-right'
+  | 'bottom-left'
+  | 'top-right'
+  | 'top-left'
+  | 'random';
+
+export type WatermarkSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+
 export interface WatermarkConfig {
   enabled: boolean;
   text: string;
   subtext?: string;
   opacity: number; // 0.1 to 1.0
-  style: 'diagonal-pattern' | 'center-stamp' | 'bottom-right';
+  style: WatermarkStyle;
+  size?: WatermarkSize;
+  color?: string;
 }
 
 export interface Gallery {

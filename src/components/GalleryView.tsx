@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import {
   Download,
   Share2,
-  Calendar,
-  MapPin,
   Heart,
   ArrowLeft,
   Lock,
@@ -35,6 +33,8 @@ interface GalleryViewProps {
   onBack: () => void;
   favorites: string[];
   onToggleFavorite: (photoId: string) => void;
+  brandName?: string;
+  brandLogoUrl?: string;
 }
 
 export const GalleryView: React.FC<GalleryViewProps> = ({
@@ -42,6 +42,8 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   onBack,
   favorites,
   onToggleFavorite,
+  brandName = 'Lente Abierto MX',
+  brandLogoUrl,
 }) => {
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
@@ -65,6 +67,15 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   const displayedPhotos = filterFavoritesOnly
     ? gallery.photos.filter((p) => favorites.includes(p.id))
     : gallery.photos;
+
+  const favoriteCountInGallery = gallery.photos.filter((p) => favorites.includes(p.id)).length;
+
+  const handleScrollToPhotos = () => {
+    const el = document.getElementById('gallery-photos-grid');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   const handleStartZipDownload = async () => {
     try {
@@ -209,47 +220,48 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#0c0d0e] text-zinc-100" onContextMenu={(e) => e.preventDefault()}>
-      {/* Top Breadcrumb & Bar */}
-      <nav className="sticky top-0 z-30 bg-[#0c0d0e]/90 backdrop-blur-md border-b border-white/5 px-3 sm:px-8 py-3 flex items-center justify-between gap-2">
+    <div className="min-h-screen bg-[#0c0d0e] text-zinc-200" onContextMenu={(e) => e.preventDefault()}>
+      {/* Top Breadcrumb & Quick Actions Bar */}
+      <nav className="sticky top-0 z-30 bg-[#0c0d0e]/95 backdrop-blur-md border-b border-white/5 px-3 sm:px-8 py-2.5 flex items-center justify-between gap-2">
         <button
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 text-xs uppercase tracking-wider text-zinc-400 hover:text-white transition-colors shrink-0"
+          className="inline-flex items-center gap-1.5 text-xs uppercase tracking-wider text-zinc-400 hover:text-amber-400 transition-colors shrink-0 min-h-[40px] whitespace-nowrap"
         >
           <ArrowLeft className="w-4 h-4 shrink-0" />
           <span className="hidden sm:inline">Volver al Portafolio</span>
           <span className="sm:hidden font-medium">Volver</span>
         </button>
 
-        <div className="flex items-center gap-1.5 sm:gap-2.5">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           {/* Favorites toggle filter */}
           <button
             onClick={() => setFilterFavoritesOnly(!filterFavoritesOnly)}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-medium tracking-wide flex items-center gap-1.5 border transition-all ${
+            className={`px-3 py-2 rounded-lg text-xs font-medium tracking-wide flex items-center gap-1.5 border transition-all whitespace-nowrap min-h-[40px] ${
               filterFavoritesOnly
-                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
                 : 'bg-white/5 text-zinc-400 border-white/10 hover:text-white'
             }`}
           >
             <Heart className={`w-3.5 h-3.5 ${filterFavoritesOnly ? 'fill-rose-400 text-rose-400' : ''}`} />
-            <span className="hidden sm:inline">Favoritos ({gallery.photos.filter((p) => favorites.includes(p.id)).length})</span>
-            <span className="sm:hidden text-[11px] font-mono">({gallery.photos.filter((p) => favorites.includes(p.id)).length})</span>
+            <span className="hidden sm:inline">Favoritos ({favoriteCountInGallery})</span>
+            <span className="sm:hidden text-[11px] font-mono tabular-nums">({favoriteCountInGallery})</span>
           </button>
 
           {/* Share button */}
           <button
             onClick={handleShare}
-            className="p-1.5 sm:p-2 rounded-full bg-white/5 border border-white/10 text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
-            title="Compartir enlace de galería"
+            className="p-2.5 rounded-lg bg-white/5 border border-white/10 text-zinc-400 hover:text-white transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center"
+            title="Copiar enlace de galería"
+            aria-label="Compartir enlace"
           >
-            {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5" />}
+            {copiedLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Share2 className="w-4 h-4" />}
           </button>
 
           {/* Download all button */}
           <button
             onClick={handleDownloadFullClick}
             disabled={isZipDownloading}
-            className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-md shadow-amber-500/20 disabled:opacity-50 shrink-0"
+            className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-sm disabled:opacity-50 shrink-0 whitespace-nowrap min-h-[40px]"
           >
             <Download className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">
@@ -260,64 +272,115 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
         </div>
       </nav>
 
-      {/* Hero Cover Header */}
-      <header className="relative w-full h-[55vh] min-h-[380px] max-h-[560px] overflow-hidden flex items-end">
-        <img
-          src={gallery.coverPhotoUrl}
-          alt={gallery.title}
-          className="absolute inset-0 w-full h-full object-cover select-none brightness-75 scale-105 transition-transform duration-1000"
-          draggable={false}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d0e] via-[#0c0d0e]/50 to-transparent" />
+      {/* Pixieset-Style Clean Hero Cover Banner (Zero text overlaid on the image) */}
+      <section className="w-full overflow-hidden border-b border-white/5 bg-black/20">
+        <div className="relative w-full h-[38vh] sm:h-[48vh] lg:h-[60vh] min-h-[240px] max-h-[600px]">
+          <img
+            src={gallery.coverPhotoUrl}
+            alt={gallery.title}
+            className="w-full h-full object-cover object-center select-none"
+            draggable={false}
+          />
+        </div>
+      </section>
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-8 pb-12 w-full">
-          <div className="max-w-3xl">
-            <div className="flex flex-wrap items-center gap-3 mb-3">
-              <span className="text-[11px] font-mono uppercase tracking-[0.2em] px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300">
-                {gallery.category}
+      {/* Pixieset-Style Editorial Header Band BELOW Cover Image */}
+      <header className="bg-[#121316] border-b border-white/5 px-4 sm:px-8 py-8 sm:py-12">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Date & Category Kicker */}
+          <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] sm:text-xs font-mono uppercase tracking-[0.22em] text-zinc-400 text-center">
+            <span>{gallery.category}</span>
+            {gallery.eventDate && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>{gallery.eventDate}</span>
+              </>
+            )}
+            {gallery.location && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>{gallery.location}</span>
+              </>
+            )}
+          </div>
+
+          {/* 3-Zone Title Strip (Brand left | Title center | Action right on tablet/desktop, cleanly stacked on mobile) */}
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_minmax(0,2fr)_1fr] items-center gap-5 md:gap-6">
+            {/* Left: Studio / Brand Identity */}
+            <div className="flex items-center justify-center md:justify-start gap-3 order-2 md:order-1">
+              {brandLogoUrl ? (
+                <img
+                  src={brandLogoUrl}
+                  alt={brandName}
+                  className="w-8 h-8 rounded-md object-contain shrink-0"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-md bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+                  <Camera className="w-4 h-4 text-amber-400" />
+                </div>
+              )}
+              <span className="text-[11px] font-mono uppercase tracking-[0.22em] text-zinc-400 truncate max-w-[200px]">
+                {brandName}
               </span>
-              {gallery.downloadPin && (
-                <span className="text-[11px] font-sans flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-zinc-300 border border-white/10">
-                  <Lock className="w-3 h-3 text-amber-400" />
-                  Descargas protegidas con PIN
-                </span>
-              )}
-              {gallery.watermark.enabled && (
-                <span className="text-[11px] font-sans flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-zinc-300 border border-white/10">
-                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                  Muestra con Marca de Agua
-                </span>
-              )}
             </div>
 
-            <h1 className="font-editorial text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white font-normal leading-[1.1] mb-3">
+            {/* Center: Main Gallery Title */}
+            <h1
+              className="font-editorial text-3xl sm:text-4xl lg:text-5xl text-white font-normal leading-[1.15] text-center order-1 md:order-2"
+              style={{ textWrap: 'balance' }}
+            >
               {gallery.title}
             </h1>
 
-            <p className="text-sm sm:text-base text-zinc-300 font-light leading-relaxed mb-4 max-w-2xl">
-              {gallery.description}
-            </p>
+            {/* Right: Scroll to Gallery CTA */}
+            <div className="flex items-center justify-center md:justify-end order-3">
+              <button
+                type="button"
+                onClick={handleScrollToPhotos}
+                className="px-5 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase transition-all whitespace-nowrap min-h-[40px]"
+              >
+                Ver galería
+              </button>
+            </div>
+          </div>
 
-            <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-xs text-zinc-400 font-sans">
+          {/* Description & Quiet Unboxed Metadata */}
+          <div className="max-w-3xl mx-auto text-center space-y-4 pt-1">
+            {gallery.description && (
+              <p className="text-sm sm:text-base text-zinc-300 font-light leading-relaxed">
+                {gallery.description}
+              </p>
+            )}
+
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-zinc-400 font-sans pt-1">
               {gallery.clientName && (
-                <span className="font-medium text-zinc-200">Clientes: {gallery.clientName}</span>
-              )}
-              {gallery.eventDate && (
-                <span className="flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                  {gallery.eventDate}
+                <span>
+                  Clientes: <strong className="font-medium text-zinc-200">{gallery.clientName}</strong>
                 </span>
               )}
-              {gallery.location && (
-                <span className="flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-amber-400" />
-                  {gallery.location}
-                </span>
-              )}
-              <span className="flex items-center gap-1.5">
+              {gallery.clientName && <span aria-hidden="true">·</span>}
+              <span className="inline-flex items-center gap-1.5 tabular-nums">
                 <Camera className="w-3.5 h-3.5 text-amber-400" />
                 {gallery.photos.length} Fotografías
               </span>
+              {gallery.downloadPin && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-amber-400" />
+                    Descarga con PIN
+                  </span>
+                </>
+              )}
+              {gallery.watermark.enabled && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                    Protegida con marca de agua
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -325,7 +388,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
 
       {/* ZIP Download Progress Overlay Banner */}
       {isZipDownloading && downloadProgress && (
-        <div className="sticky top-16 z-30 bg-amber-500/10 border-b border-amber-500/30 backdrop-blur-md px-4 sm:px-8 py-3 text-amber-200 text-xs">
+        <div className="sticky top-16 z-30 bg-amber-500/10 border-b border-amber-500/30 backdrop-blur-md px-4 sm:px-8 py-3 text-amber-300 text-xs">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-400 animate-spin" />
@@ -345,7 +408,60 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
       )}
 
       {/* Main Grid Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-8 py-10 sm:py-16">
+      <main id="gallery-photos-grid" className="max-w-7xl mx-auto px-4 sm:px-8 py-8 sm:py-12">
+        {/* Clean Pixieset-style Action Bar above the photos */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 mb-6 border-b border-white/5">
+          <div className="min-w-0">
+            <h2 className="font-editorial text-lg sm:text-xl text-white font-normal truncate">
+              {gallery.title}
+            </h2>
+            <p className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 tabular-nums">
+              {displayedPhotos.length} de {gallery.photos.length} fotografías
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-zinc-400">
+            <button
+              type="button"
+              onClick={() => setFilterFavoritesOnly(!filterFavoritesOnly)}
+              className={`inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-lg transition-colors whitespace-nowrap ${
+                filterFavoritesOnly ? 'text-rose-400 font-medium bg-rose-500/10' : 'hover:text-white'
+              }`}
+            >
+              <Heart className={`w-3.5 h-3.5 ${filterFavoritesOnly ? 'fill-rose-400 text-rose-400' : ''}`} />
+              <span>Favoritos ({favoriteCountInGallery})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadFullClick}
+              disabled={isZipDownloading}
+              className="inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-lg hover:text-amber-400 transition-colors whitespace-nowrap disabled:opacity-50"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Descargar ZIP</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleShare}
+              className="inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-lg hover:text-white transition-colors whitespace-nowrap"
+            >
+              {copiedLink ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-emerald-400">Enlace copiado</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Compartir</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
         {displayedPhotos.length === 0 ? (
           <div className="text-center py-20 bg-white/[0.02] border border-white/5 rounded-2xl p-8">
             <Heart className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
@@ -363,7 +479,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
             </button>
           </div>
         ) : (
-          <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6">
+          <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 sm:gap-6 space-y-4 sm:space-y-6">
             {displayedPhotos.map((photo) => {
               const photoIndex = gallery.photos.findIndex((p) => p.id === photo.id);
               const isFav = favorites.includes(photo.id);
@@ -386,7 +502,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
                     />
 
                     {/* Watermark overlay */}
-                    <WatermarkCanvas watermark={gallery.watermark} />
+                    <WatermarkCanvas watermark={gallery.watermark} seed={photo.id} />
 
                     {/* Anti-copy transparent protector */}
                     <div

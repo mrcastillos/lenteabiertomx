@@ -319,7 +319,7 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
           />
 
           {/* Watermark overlay (only visible in viewer, never on downloaded file!) */}
-          <WatermarkCanvas watermark={gallery.watermark} />
+          <WatermarkCanvas watermark={gallery.watermark} seed={currentPhoto.id} />
 
           {/* Invisible Anti-Drag & Right-Click Interceptor Layer */}
           <div

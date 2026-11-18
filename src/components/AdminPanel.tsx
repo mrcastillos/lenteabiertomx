@@ -48,6 +48,8 @@ import {
   Gallery,
   Photo,
   WatermarkConfig,
+  WatermarkStyle,
+  WatermarkSize,
   BookingInquiry,
   DriveFolderItem,
   SiteContentConfig,
@@ -57,6 +59,7 @@ import {
   DownloadLog,
   FavoriteLog,
 } from '../types';
+import { WatermarkCanvas } from './WatermarkCanvas';
 import {
   fetchPhotosFromScriptApi,
   extractFolderId,
@@ -266,6 +269,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Editing gallery state
   const [editingGalleryId, setEditingGalleryId] = useState<string | null>(null);
 
+  // Live watermark preview seed (for testing random placement)
+  const [watermarkPreviewSeed, setWatermarkPreviewSeed] = useState<string>('preview-admin-1');
+
   // Form for new/editing gallery
   const [galleryForm, setGalleryForm] = useState<{
     title: string;
@@ -284,7 +290,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     watermarkText: string;
     watermarkSubtext: string;
     watermarkOpacity: number;
-    watermarkStyle: 'diagonal-pattern' | 'center-stamp' | 'bottom-right';
+    watermarkStyle: WatermarkStyle;
+    watermarkSize: WatermarkSize;
+    watermarkColor: string;
     photos: Photo[];
   }>({
     title: '',
@@ -304,6 +312,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     watermarkSubtext: 'MUESTRA DE CLIENTE · COPIA NO AUTORIZADA',
     watermarkOpacity: 0.35,
     watermarkStyle: 'diagonal-pattern',
+    watermarkSize: 'md',
+    watermarkColor: '#ffffff',
     photos: [],
   });
 
@@ -483,7 +493,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       watermarkText: g.watermark.text,
       watermarkSubtext: g.watermark.subtext || '',
       watermarkOpacity: g.watermark.opacity,
-      watermarkStyle: g.watermark.style,
+      watermarkStyle: g.watermark.style || 'diagonal-pattern',
+      watermarkSize: g.watermark.size || 'md',
+      watermarkColor: g.watermark.color || '#ffffff',
       photos: [...g.photos],
     });
     setActiveTab('newGallery');
@@ -588,6 +600,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         subtext: 'PREVIA DIGITAL · PROTEGIDO',
         opacity: 0.35,
         style: 'diagonal-pattern',
+        size: 'md',
+        color: '#ffffff',
       },
       photos: previewedDrivePhotos,
       createdAt: new Date().toISOString(),
@@ -704,6 +718,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         subtext: 'PREVIA DIGITAL · PROTEGIDO',
         opacity: 0.35,
         style: 'diagonal-pattern',
+        size: 'md',
+        color: '#ffffff',
       },
       photos: googlePhotosParsedList,
       createdAt: new Date().toISOString(),
@@ -762,6 +778,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       subtext: galleryForm.watermarkSubtext,
       opacity: galleryForm.watermarkOpacity,
       style: galleryForm.watermarkStyle,
+      size: galleryForm.watermarkSize,
+      color: galleryForm.watermarkColor || '#ffffff',
     };
 
     const cleanDriveFolder = galleryForm.driveFolderId.trim()
@@ -944,6 +962,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               watermarkSubtext: 'MUESTRA DE CLIENTE · COPIA NO AUTORIZADA',
               watermarkOpacity: 0.35,
               watermarkStyle: 'diagonal-pattern',
+              watermarkSize: 'md',
+              watermarkColor: '#ffffff',
               photos: [],
             });
             setActiveTab('newGallery');
@@ -2113,46 +2133,195 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
             {galleryForm.watermarkEnabled && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs pt-4 border-t border-white/5">
-                <div>
-                  <label className="block text-zinc-400 uppercase tracking-wider text-[10px] mb-1 font-mono">
-                    Texto Principal de la Marca
-                  </label>
-                  <input
-                    type="text"
-                    value={galleryForm.watermarkText}
-                    onChange={(e) => setGalleryForm({ ...galleryForm, watermarkText: e.target.value })}
-                    className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-3.5 py-2 text-white font-mono"
-                  />
+              <div className="space-y-6 pt-4 border-t border-white/5 text-xs">
+                {/* Text & Opacity row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-zinc-400 uppercase tracking-wider text-[10px] mb-1 font-mono">
+                      Texto Principal de la Marca
+                    </label>
+                    <input
+                      type="text"
+                      value={galleryForm.watermarkText}
+                      onChange={(e) => setGalleryForm({ ...galleryForm, watermarkText: e.target.value })}
+                      className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-zinc-400 uppercase tracking-wider text-[10px] mb-1 font-mono">
+                      Subtexto Protector
+                    </label>
+                    <input
+                      type="text"
+                      value={galleryForm.watermarkSubtext}
+                      onChange={(e) => setGalleryForm({ ...galleryForm, watermarkSubtext: e.target.value })}
+                      className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-zinc-400 uppercase tracking-wider text-[10px] mb-1 font-mono">
+                      Transparencia / Opacidad: {Math.round(galleryForm.watermarkOpacity * 100)}%
+                    </label>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="0.9"
+                      step="0.05"
+                      value={galleryForm.watermarkOpacity}
+                      onChange={(e) =>
+                        setGalleryForm({ ...galleryForm, watermarkOpacity: parseFloat(e.target.value) })
+                      }
+                      className="w-full accent-amber-500 mt-2.5"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-zinc-400 uppercase tracking-wider text-[10px] mb-1 font-mono">
-                    Subtexto Protector
-                  </label>
-                  <input
-                    type="text"
-                    value={galleryForm.watermarkSubtext}
-                    onChange={(e) => setGalleryForm({ ...galleryForm, watermarkSubtext: e.target.value })}
-                    className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-3.5 py-2 text-white font-mono"
-                  />
+                {/* Position / Size / Color row */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* Position / Style */}
+                  <div>
+                    <label className="block text-zinc-400 uppercase tracking-wider text-[10px] mb-1.5 font-mono">
+                      Posición y Estilo
+                    </label>
+                    <select
+                      value={galleryForm.watermarkStyle}
+                      onChange={(e) =>
+                        setGalleryForm({ ...galleryForm, watermarkStyle: e.target.value as WatermarkStyle })
+                      }
+                      className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-sans focus:outline-none focus:border-amber-500/60"
+                    >
+                      <option value="diagonal-pattern">Patrón Diagonal Completo</option>
+                      <option value="center-stamp">Centro (Sello con Marco)</option>
+                      <option value="center-text">Centro (Solo Texto)</option>
+                      <option value="bottom-right">Esquina Inferior Derecha</option>
+                      <option value="bottom-left">Esquina Inferior Izquierda</option>
+                      <option value="top-right">Esquina Superior Derecha</option>
+                      <option value="top-left">Esquina Superior Izquierda</option>
+                      <option value="random">Aleatoria por Foto</option>
+                    </select>
+                  </div>
+
+                  {/* Size selector */}
+                  <div>
+                    <label className="block text-zinc-400 uppercase tracking-wider text-[10px] mb-1.5 font-mono">
+                      Tamaño de la Marca
+                    </label>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {(
+                        [
+                          { id: 'xs', label: 'XS' },
+                          { id: 'sm', label: 'S' },
+                          { id: 'md', label: 'M' },
+                          { id: 'lg', label: 'L' },
+                          { id: 'xl', label: 'XL' },
+                        ] as { id: WatermarkSize; label: string }[]
+                      ).map((sz) => (
+                        <button
+                          key={sz.id}
+                          type="button"
+                          onClick={() => setGalleryForm({ ...galleryForm, watermarkSize: sz.id })}
+                          className={`py-2.5 rounded-xl font-mono text-[11px] uppercase tracking-wider border transition-all ${
+                            galleryForm.watermarkSize === sz.id
+                              ? 'bg-amber-500 text-black border-amber-400 font-bold'
+                              : 'bg-[#181a1f] text-zinc-300 border-zinc-800 hover:border-zinc-600'
+                          }`}
+                        >
+                          {sz.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Color picker & Swatches */}
+                  <div>
+                    <label className="block text-zinc-400 uppercase tracking-wider text-[10px] mb-1.5 font-mono">
+                      Color de la Marca de Agua
+                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="relative w-10 h-10 rounded-xl overflow-hidden border border-zinc-700 cursor-pointer shrink-0">
+                        <input
+                          type="color"
+                          value={galleryForm.watermarkColor}
+                          onChange={(e) => setGalleryForm({ ...galleryForm, watermarkColor: e.target.value })}
+                          className="absolute -inset-2 w-14 h-14 cursor-pointer bg-transparent border-0"
+                          title="Elegir color personalizado"
+                        />
+                      </label>
+                      <input
+                        type="text"
+                        value={galleryForm.watermarkColor}
+                        onChange={(e) => setGalleryForm({ ...galleryForm, watermarkColor: e.target.value })}
+                        className="w-24 bg-[#181a1f] border border-zinc-800 rounded-xl px-2.5 py-2 text-white font-mono text-xs uppercase"
+                        placeholder="#FFFFFF"
+                      />
+                      <div className="flex items-center gap-1.5">
+                        {['#ffffff', '#000000', '#f59e0b', '#d4d4d8', '#ef4444'].map((presetColor) => (
+                          <button
+                            key={presetColor}
+                            type="button"
+                            onClick={() => setGalleryForm({ ...galleryForm, watermarkColor: presetColor })}
+                            className={`w-6 h-6 rounded-full border transition-transform ${
+                              galleryForm.watermarkColor.toLowerCase() === presetColor
+                                ? 'border-amber-400 scale-110 ring-2 ring-amber-400/30'
+                                : 'border-white/25 hover:scale-105'
+                            }`}
+                            style={{ backgroundColor: presetColor }}
+                            title={presetColor}
+                            aria-label={`Color ${presetColor}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-zinc-400 uppercase tracking-wider text-[10px] mb-1 font-mono">
-                    Opacidad: {Math.round(galleryForm.watermarkOpacity * 100)}%
-                  </label>
-                  <input
-                    type="range"
-                    min="0.1"
-                    max="0.8"
-                    step="0.05"
-                    value={galleryForm.watermarkOpacity}
-                    onChange={(e) =>
-                      setGalleryForm({ ...galleryForm, watermarkOpacity: parseFloat(e.target.value) })
-                    }
-                    className="w-full accent-amber-500 mt-2"
-                  />
+                {/* Live Interactive Preview */}
+                <div className="pt-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">
+                      Vista Previa en Tiempo Real
+                    </span>
+                    {galleryForm.watermarkStyle === 'random' && (
+                      <button
+                        type="button"
+                        onClick={() => setWatermarkPreviewSeed(`preview-${Date.now()}`)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-mono uppercase tracking-wider text-amber-300"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Probar otra posición aleatoria</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="relative w-full h-44 sm:h-56 rounded-2xl overflow-hidden border border-white/10 bg-gradient-to-br from-zinc-800 via-zinc-900 to-black">
+                    {(galleryForm.coverPhotoUrl || galleryForm.photos[0]?.url) ? (
+                      <img
+                        src={galleryForm.coverPhotoUrl || galleryForm.photos[0]?.url}
+                        alt="Vista previa marca de agua"
+                        className="w-full h-full object-cover object-center opacity-85"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-[radial-gradient(circle_at_30%_30%,#3f3f46_0%,#18181b_55%,#09090b_100%)]">
+                        <span className="text-[11px] font-mono uppercase tracking-widest text-zinc-500">
+                          Fondo de muestra de fotografía
+                        </span>
+                      </div>
+                    )}
+                    <WatermarkCanvas
+                      watermark={{
+                        enabled: true,
+                        text: galleryForm.watermarkText || 'LENTE ABIERTO MX',
+                        subtext: galleryForm.watermarkSubtext,
+                        opacity: galleryForm.watermarkOpacity,
+                        style: galleryForm.watermarkStyle,
+                        size: galleryForm.watermarkSize,
+                        color: galleryForm.watermarkColor || '#ffffff',
+                      }}
+                      seed={watermarkPreviewSeed}
+                    />
+                  </div>
                 </div>
               </div>
             )}
