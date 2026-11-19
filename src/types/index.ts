@@ -18,6 +18,8 @@ export interface Photo {
   dateAdded: string;
 }
 
+export type PhotoSortOrder = 'default' | 'newest' | 'oldest' | 'name-asc' | 'random';
+
 export type WatermarkStyle =
   | 'diagonal-pattern'
   | 'center-stamp'

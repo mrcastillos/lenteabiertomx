@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Download,
   Share2,
@@ -13,8 +13,10 @@ import {
   Eye,
   Clock,
   AlertTriangle,
+  ArrowUpDown,
+  Shuffle,
 } from 'lucide-react';
-import { Gallery, Photo } from '../types';
+import { Gallery, Photo, PhotoSortOrder } from '../types';
 import { WatermarkCanvas } from './WatermarkCanvas';
 import { PhotoLightbox } from './PhotoLightbox';
 import { PinModal } from './PinModal';
@@ -50,7 +52,9 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   brandName = 'Lente Abierto MX',
   brandLogoUrl,
 }) => {
-  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
+  const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<PhotoSortOrder>('default');
+  const [randomSeed, setRandomSeed] = useState<number>(() => Date.now());
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [pinActionType, setPinActionType] = useState<'single' | 'full'>('full');
   const [downloadTargetPhoto, setDownloadTargetPhoto] = useState<Photo | null>(null);
@@ -72,9 +76,79 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   const expirationStatus = getGalleryExpirationStatus(gallery);
   const isDownloadsExpired = expirationStatus.isExpired;
 
-  const displayedPhotos = filterFavoritesOnly
-    ? gallery.photos.filter((p) => favorites.includes(p.id))
-    : gallery.photos;
+  const sortedPhotos = useMemo(() => {
+    const base = [...gallery.photos];
+    if (sortOrder === 'newest') {
+      return base
+        .map((p, idx) => ({ p, idx }))
+        .sort((a, b) => {
+          const diff =
+            new Date(b.p.dateAdded || 0).getTime() - new Date(a.p.dateAdded || 0).getTime();
+          return diff !== 0 ? diff : b.idx - a.idx;
+        })
+        .map((entry) => entry.p);
+    }
+    if (sortOrder === 'oldest') {
+      return base
+        .map((p, idx) => ({ p, idx }))
+        .sort((a, b) => {
+          const diff =
+            new Date(a.p.dateAdded || 0).getTime() - new Date(b.p.dateAdded || 0).getTime();
+          return diff !== 0 ? diff : a.idx - b.idx;
+        })
+        .map((entry) => entry.p);
+    }
+    if (sortOrder === 'name-asc') {
+      return base.sort((a, b) =>
+        (a.title || '').localeCompare(b.title || '', 'es', {
+          numeric: true,
+          sensitivity: 'base',
+        })
+      );
+    }
+    if (sortOrder === 'random') {
+      // Deterministic Fisher-Yates shuffle keyed by randomSeed so liking/navigating won't re-shuffle
+      let state = (randomSeed ^ 0x9e3779b9) >>> 0;
+      const nextRand = () => {
+        state = (state + 0x6d2b79f5) >>> 0;
+        let t = Math.imul(state ^ (state >>> 15), 1 | state);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+      for (let i = base.length - 1; i > 0; i--) {
+        const j = Math.floor(nextRand() * (i + 1));
+        [base[i], base[j]] = [base[j], base[i]];
+      }
+      return base;
+    }
+    return base;
+  }, [gallery.photos, sortOrder, randomSeed]);
+
+  const displayedPhotos = useMemo(
+    () =>
+      filterFavoritesOnly
+        ? sortedPhotos.filter((p) => favorites.includes(p.id))
+        : sortedPhotos,
+    [sortedPhotos, filterFavoritesOnly, favorites]
+  );
+
+  const selectedPhotoIndex = useMemo(() => {
+    if (!selectedPhotoId) return null;
+    const idx = displayedPhotos.findIndex((p) => p.id === selectedPhotoId);
+    return idx >= 0 ? idx : null;
+  }, [selectedPhotoId, displayedPhotos]);
+
+  const handleChangeSortOrder = (nextOrder: PhotoSortOrder) => {
+    setSortOrder(nextOrder);
+    if (nextOrder === 'random') {
+      setRandomSeed((prev) => (prev === Date.now() ? prev + 1 : Date.now()));
+    }
+  };
+
+  const handleReshuffle = () => {
+    setSortOrder('random');
+    setRandomSeed((prev) => prev + Math.floor(Math.random() * 10000) + 1);
+  };
 
   const favoriteCountInGallery = gallery.photos.filter((p) => favorites.includes(p.id)).length;
 
@@ -472,7 +546,37 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-zinc-400">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-zinc-400">
+            {/* Quick Photo Sort Selector + Random Shuffle */}
+            <div className="inline-flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5">
+              <ArrowUpDown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <select
+                value={sortOrder}
+                onChange={(e) => handleChangeSortOrder(e.target.value as PhotoSortOrder)}
+                aria-label="Ordenar fotografías de la galería"
+                className="bg-transparent text-zinc-200 text-xs focus:outline-none cursor-pointer pr-1"
+              >
+                <option value="default" className="bg-[#121316] text-white">Orden original</option>
+                <option value="newest" className="bg-[#121316] text-white">Más recientes</option>
+                <option value="oldest" className="bg-[#121316] text-white">Más antiguas</option>
+                <option value="name-asc" className="bg-[#121316] text-white">Nombre A–Z</option>
+                <option value="random" className="bg-[#121316] text-white">Aleatorio</option>
+              </select>
+              <button
+                type="button"
+                onClick={handleReshuffle}
+                className={`p-1 rounded-md transition-colors ${
+                  sortOrder === 'random'
+                    ? 'bg-amber-500/20 text-amber-300'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/10'
+                }`}
+                title="Mezclar fotos en orden aleatorio"
+                aria-label="Ordenar aleatoriamente"
+              >
+                <Shuffle className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
             <button
               type="button"
               onClick={() => setFilterFavoritesOnly(!filterFavoritesOnly)}
@@ -533,14 +637,13 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
         ) : (
           <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 sm:gap-6 space-y-4 sm:space-y-6">
             {displayedPhotos.map((photo) => {
-              const photoIndex = gallery.photos.findIndex((p) => p.id === photo.id);
               const isFav = favorites.includes(photo.id);
               const favCount = getPhotoFavoriteCount(photo.id);
 
               return (
                 <div
                   key={photo.id}
-                  onClick={() => setSelectedPhotoIndex(photoIndex)}
+                  onClick={() => setSelectedPhotoId(photo.id)}
                   className="group relative cursor-pointer break-inside-avoid overflow-hidden rounded-xl bg-[#141518] border border-white/5 hover:border-amber-500/30 transition-all duration-300 shadow-lg"
                 >
                   <div className="relative overflow-hidden">
@@ -646,17 +749,23 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
       {selectedPhotoIndex !== null && (
         <PhotoLightbox
           gallery={gallery}
-          photos={gallery.photos}
+          photos={displayedPhotos}
           currentIndex={selectedPhotoIndex}
           isOpen={selectedPhotoIndex !== null}
-          onClose={() => setSelectedPhotoIndex(null)}
-          onNavigate={(newIdx) => setSelectedPhotoIndex(newIdx)}
-          isFavorite={favorites.includes(gallery.photos[selectedPhotoIndex]?.id || '')}
+          onClose={() => setSelectedPhotoId(null)}
+          onNavigate={(newIdx) => {
+            const target = displayedPhotos[newIdx];
+            if (target) setSelectedPhotoId(target.id);
+          }}
+          isFavorite={favorites.includes(displayedPhotos[selectedPhotoIndex]?.id || '')}
           onToggleFavorite={onToggleFavorite}
           onRequestPin={handleRequestPinFromLightbox}
           onRequestFavorite={handleLightboxRequestFav}
           isPinVerified={isPinVerified}
           isExpired={isDownloadsExpired}
+          sortOrder={sortOrder}
+          onChangeSortOrder={handleChangeSortOrder}
+          onReshuffle={handleReshuffle}
         />
       )}
 

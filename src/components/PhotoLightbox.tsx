@@ -13,8 +13,10 @@ import {
   Lock,
   Share2,
   Check,
+  ArrowUpDown,
+  Shuffle,
 } from 'lucide-react';
-import { Photo, Gallery } from '../types';
+import { Photo, Gallery, PhotoSortOrder } from '../types';
 import { WatermarkCanvas } from './WatermarkCanvas';
 import { downloadSingleCleanPhoto } from '../services/zipDownloader';
 import { getAccessToken } from '../services/firebase';
@@ -41,6 +43,9 @@ interface PhotoLightboxProps {
   onRequestFavorite?: (photo: Photo) => void;
   isPinVerified: boolean;
   isExpired?: boolean;
+  sortOrder?: PhotoSortOrder;
+  onChangeSortOrder?: (order: PhotoSortOrder) => void;
+  onReshuffle?: () => void;
 }
 
 export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
@@ -56,6 +61,9 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
   onRequestFavorite,
   isPinVerified,
   isExpired = false,
+  sortOrder = 'default',
+  onChangeSortOrder,
+  onReshuffle,
 }) => {
   const [showInfo, setShowInfo] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -219,7 +227,41 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-1.5 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-2.5">
+          {/* Quick Sort inside Lightbox Visor */}
+          {onChangeSortOrder && (
+            <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-full px-2.5 py-1 text-[11px] text-zinc-300">
+              <ArrowUpDown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <select
+                value={sortOrder}
+                onChange={(e) => onChangeSortOrder(e.target.value as PhotoSortOrder)}
+                aria-label="Ordenar fotografías"
+                className="bg-transparent text-zinc-200 focus:outline-none cursor-pointer pr-1 max-w-[96px] sm:max-w-none"
+              >
+                <option value="default" className="bg-[#121316] text-white">Orden original</option>
+                <option value="newest" className="bg-[#121316] text-white">Más recientes</option>
+                <option value="oldest" className="bg-[#121316] text-white">Más antiguas</option>
+                <option value="name-asc" className="bg-[#121316] text-white">Nombre A–Z</option>
+                <option value="random" className="bg-[#121316] text-white">Aleatorio</option>
+              </select>
+              {onReshuffle && (
+                <button
+                  type="button"
+                  onClick={onReshuffle}
+                  className={`p-1 rounded-full transition-colors ${
+                    sortOrder === 'random'
+                      ? 'text-amber-300 bg-amber-500/20'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/10'
+                  }`}
+                  title="Mezclar en orden aleatorio"
+                  aria-label="Orden aleatorio"
+                >
+                  <Shuffle className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Favorite button with count */}
           <button
             onClick={handleToggleFavClick}
