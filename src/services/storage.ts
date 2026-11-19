@@ -782,21 +782,25 @@ export function getStoredSiteContent(): SiteContentConfig {
   }
 }
 
-export function saveSiteContent(content: SiteContentConfig): void {
+export function saveSiteContent(content: SiteContentConfig, skipCloudSync = false): void {
   try {
     localStorage.setItem(STORAGE_KEY_SITE_CONTENT, JSON.stringify(content));
-    saveSiteContentToCloud(content).catch((e) => {
-      console.warn('Background site content sync to cloud failed:', e);
-    });
+    if (!skipCloudSync) {
+      saveSiteContentToCloud(content).catch((e) => {
+        console.warn('Background site content sync to cloud failed:', e);
+      });
+    }
   } catch (e) {
     console.error('Error saving site content', e);
   }
 }
 
-export function resetSiteContent(): SiteContentConfig {
+export function resetSiteContent(skipCloudSync = false): SiteContentConfig {
   try {
     localStorage.setItem(STORAGE_KEY_SITE_CONTENT, JSON.stringify(DEFAULT_SITE_CONTENT));
-    saveSiteContentToCloud(DEFAULT_SITE_CONTENT).catch(() => {});
+    if (!skipCloudSync) {
+      saveSiteContentToCloud(DEFAULT_SITE_CONTENT).catch(() => {});
+    }
   } catch (e) {
     console.error('Error resetting site content', e);
   }

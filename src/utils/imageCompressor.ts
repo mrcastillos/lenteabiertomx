@@ -59,3 +59,62 @@ export function resizeImageToDataUrl(
     reader.readAsDataURL(file);
   });
 }
+
+/**
+ * Safely compresses an existing Base64 image Data URL only if it exceeds maxBytes.
+ * URLs, SVGs, and already compact images are returned untouched.
+ */
+export function compressDataUrlIfOversized(
+  dataUrl: string | undefined,
+  maxWidth = 800,
+  maxHeight = 800,
+  quality = 0.85,
+  maxBytes = 120000
+): Promise<string> {
+  if (!dataUrl || !dataUrl.startsWith('data:image/') || dataUrl.startsWith('data:image/svg') || dataUrl.length <= maxBytes) {
+    return Promise.resolve(dataUrl || '');
+  }
+
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      img.onerror = () => resolve(dataUrl);
+      img.onload = () => {
+        try {
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height);
+            width = Math.max(1, Math.round(width * ratio));
+            height = Math.max(1, Math.round(height * ratio));
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(dataUrl);
+            return;
+          }
+
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const isPng = dataUrl.startsWith('data:image/png') || dataUrl.startsWith('data:image/x-icon');
+          const format = isPng ? 'image/png' : 'image/jpeg';
+          const compressed = canvas.toDataURL(format, quality);
+          resolve(compressed.length < dataUrl.length ? compressed : dataUrl);
+        } catch {
+          resolve(dataUrl);
+        }
+      };
+      img.src = dataUrl;
+    } catch {
+      resolve(dataUrl);
+    }
+  });
+}
+

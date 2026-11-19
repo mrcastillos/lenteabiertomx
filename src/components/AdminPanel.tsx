@@ -99,7 +99,7 @@ import {
   factoryResetSiteInCloud,
   DatabaseCollectionStat,
 } from '../services/firestoreSync';
-import { resizeImageToDataUrl } from '../utils/imageCompressor';
+import { resizeImageToDataUrl, compressDataUrlIfOversized } from '../utils/imageCompressor';
 import {
   getStoredUsers,
   addUser,
@@ -3148,11 +3148,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   if (window.confirm('¿Deseas restablecer todos los textos y datos del sitio a sus valores originales?')) {
-                    const reset = resetSiteContent();
+                    const reset = resetSiteContent(Boolean(onSaveSiteContent));
                     setCmsContent(reset);
-                    if (onSaveSiteContent) onSaveSiteContent(reset);
+                    if (onSaveSiteContent) await onSaveSiteContent(reset);
                     setCmsSaveSuccess(true);
                     setTimeout(() => setCmsSaveSuccess(false), 2500);
                   }
@@ -3169,9 +3169,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   setIsSavingCms(true);
                   setCmsSaveError(null);
                   try {
-                    saveSiteContent(cmsContent);
+                    const [optFavicon, optLogo, optPortrait] = await Promise.all([
+                      compressDataUrlIfOversized(cmsContent.general?.faviconUrl, 128, 128, 0.9, 45000),
+                      compressDataUrlIfOversized(cmsContent.general?.logoIconUrl, 400, 400, 0.88, 90000),
+                      compressDataUrlIfOversized(cmsContent.biography?.portraitUrl, 960, 1280, 0.84, 150000),
+                    ]);
+
+                    const optimizedCms: SiteContentConfig = {
+                      ...cmsContent,
+                      general: cmsContent.general
+                        ? {
+                            ...cmsContent.general,
+                            faviconUrl: optFavicon || cmsContent.general.faviconUrl || '',
+                            logoIconUrl: optLogo || cmsContent.general.logoIconUrl || '',
+                          }
+                        : cmsContent.general,
+                      biography: {
+                        ...cmsContent.biography,
+                        portraitUrl: optPortrait || cmsContent.biography.portraitUrl,
+                      },
+                    };
+
+                    setCmsContent(optimizedCms);
                     if (onSaveSiteContent) {
-                      await onSaveSiteContent(cmsContent);
+                      await onSaveSiteContent(optimizedCms);
+                    } else {
+                      saveSiteContent(optimizedCms);
                     }
                     setCmsSaveSuccess(true);
                     setTimeout(() => setCmsSaveSuccess(false), 3500);
@@ -3508,17 +3531,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           type="file"
                           accept="image/png,image/x-icon,image/svg+xml,image/jpeg,image/webp"
                           className="hidden"
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const file = e.target.files?.[0];
                             if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (ev) => {
-                                const dataUrl = ev.target?.result as string;
+                              try {
+                                const dataUrl = await resizeImageToDataUrl(file, 128, 128, 0.9);
                                 if (dataUrl) {
-                                  setCmsContent({
-                                    ...cmsContent,
+                                  setCmsContent((prev) => ({
+                                    ...prev,
                                     general: {
-                                      ...(cmsContent.general || {
+                                      ...(prev.general || {
                                         pageTitle: '',
                                         pageDescription: '',
                                         brandName: 'Lente Abierto MX',
@@ -3528,10 +3550,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                       }),
                                       faviconUrl: dataUrl,
                                     },
-                                  });
+                                  }));
                                 }
-                              };
-                              reader.readAsDataURL(file);
+                              } catch (err) {
+                                console.error('Error optimizing favicon:', err);
+                              }
                             }
                           }}
                         />
@@ -3625,17 +3648,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           type="file"
                           accept="image/png,image/svg+xml,image/jpeg,image/webp"
                           className="hidden"
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const file = e.target.files?.[0];
                             if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (ev) => {
-                                const dataUrl = ev.target?.result as string;
+                              try {
+                                const dataUrl = await resizeImageToDataUrl(file, 400, 400, 0.88);
                                 if (dataUrl) {
-                                  setCmsContent({
-                                    ...cmsContent,
+                                  setCmsContent((prev) => ({
+                                    ...prev,
                                     general: {
-                                      ...(cmsContent.general || {
+                                      ...(prev.general || {
                                         pageTitle: '',
                                         pageDescription: '',
                                         brandName: 'Lente Abierto MX',
@@ -3645,10 +3667,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                       }),
                                       logoIconUrl: dataUrl,
                                     },
-                                  });
+                                  }));
                                 }
-                              };
-                              reader.readAsDataURL(file);
+                              } catch (err) {
+                                console.error('Error optimizing logo:', err);
+                              }
                             }
                           }}
                         />
@@ -4040,20 +4063,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           type="file"
                           accept="image/*"
                           className="hidden"
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const file = e.target.files?.[0];
                             if (file) {
-                              const r = new FileReader();
-                              r.onload = (ev) => {
-                                const data = ev.target?.result as string;
+                              try {
+                                const data = await resizeImageToDataUrl(file, 960, 1280, 0.84);
                                 if (data) {
-                                  setCmsContent({
-                                    ...cmsContent,
-                                    biography: { ...cmsContent.biography, portraitUrl: data },
-                                  });
+                                  setCmsContent((prev) => ({
+                                    ...prev,
+                                    biography: { ...prev.biography, portraitUrl: data },
+                                  }));
                                 }
-                              };
-                              r.readAsDataURL(file);
+                              } catch (err) {
+                                console.error('Error optimizing portrait:', err);
+                              }
                             }
                           }}
                         />

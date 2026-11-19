@@ -179,7 +179,7 @@ export default function App() {
 
   const handleSaveSiteContent = async (updated: SiteContentConfig) => {
     setSiteContent(updated);
-    saveSiteContent(updated);
+    saveSiteContent(updated, true);
     try {
       await saveSiteContentToCloud(updated);
     } catch (e) {
