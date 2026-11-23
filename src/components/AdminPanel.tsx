@@ -91,8 +91,10 @@ import {
 } from '../services/storage';
 import {
   deleteGalleryFromCloud,
-  saveGalleryToCloud,
   subscribeToUsers,
+  subscribeToDownloadLogs,
+  subscribeToFavoriteLogs,
+  subscribeToInquiries,
   syncAllUsersToCloud,
   getDatabaseStatsFromCloud,
   wipeAllDatabaseCollectionsFromCloud,
@@ -251,8 +253,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       }
     });
 
+    const unsubDownloads = subscribeToDownloadLogs((cloudDownloads) => {
+      setDownloadLogs(cloudDownloads);
+    });
+
+    const unsubFavorites = subscribeToFavoriteLogs((cloudFavorites) => {
+      setFavoriteLogs(cloudFavorites);
+    });
+
+    const unsubInquiries = subscribeToInquiries((cloudInquiries) => {
+      setInquiries(cloudInquiries);
+    });
+
     return () => {
       unsubUsers();
+      unsubDownloads();
+      unsubFavorites();
+      unsubInquiries();
     };
   }, []);
 
@@ -1020,10 +1037,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </button>
 
         <button
-          onClick={() => {
-            setDownloadLogs(getStoredDownloadLogs());
-            setActiveTab('downloads');
-          }}
+          onClick={() => setActiveTab('downloads')}
           className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
             activeTab === 'downloads'
               ? 'bg-amber-500 text-black font-semibold'
@@ -1035,10 +1049,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </button>
 
         <button
-          onClick={() => {
-            setFavoriteLogs(getStoredFavoriteLogs());
-            setActiveTab('favorites');
-          }}
+          onClick={() => setActiveTab('favorites')}
           className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
             activeTab === 'favorites'
               ? 'bg-rose-500 text-white font-semibold shadow-lg shadow-rose-500/20'

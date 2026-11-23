@@ -310,6 +310,45 @@ export async function fetchDownloadLogsFromCloud(): Promise<DownloadLog[]> {
   }
 }
 
+export function subscribeToDownloadLogs(
+  onUpdate: (logs: DownloadLog[]) => void
+) {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'downloadLogs'),
+    (snapshot) => {
+      const byId = new Map<string, DownloadLog>();
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as DownloadLog;
+        if (data?.id) byId.set(data.id, data);
+      });
+      // Keep any unsynced local pending download logs visible until flushed
+      try {
+        const pendingRaw = localStorage.getItem('lente_abierto_pending_dl_logs_v1');
+        const pending = pendingRaw ? (JSON.parse(pendingRaw) as DownloadLog[]) : [];
+        if (Array.isArray(pending)) {
+          for (const item of pending) {
+            if (item?.id && !byId.has(item.id)) {
+              byId.set(item.id, item);
+            }
+          }
+        }
+      } catch {}
+
+      const logs = Array.from(byId.values()).sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+      try {
+        localStorage.setItem('lente_abierto_download_logs_v1', JSON.stringify(logs.slice(0, 500)));
+      } catch {}
+      onUpdate(logs);
+    },
+    (err) => {
+      console.warn('Download logs cloud sync error:', err);
+    }
+  );
+}
+
 export async function saveFavoriteLogToCloud(log: FavoriteLog): Promise<void> {
   if (!db) return;
   const path = `favoriteLogs/${log.id}`;
@@ -388,6 +427,29 @@ export async function fetchInquiriesFromCloud(): Promise<BookingInquiry[]> {
     handleFirestoreError(err, OperationType.LIST, path);
     return [];
   }
+}
+
+export function subscribeToInquiries(
+  onUpdate: (inquiries: BookingInquiry[]) => void
+) {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'inquiries'),
+    (snapshot) => {
+      const list: BookingInquiry[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as BookingInquiry);
+      });
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      try {
+        localStorage.setItem('lente_abierto_inquiries_v2', JSON.stringify(list));
+      } catch {}
+      onUpdate(list);
+    },
+    (err) => {
+      console.warn('Inquiries cloud sync error:', err);
+    }
+  );
 }
 
 // ----------------------------------------------------------------------
