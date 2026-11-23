@@ -112,7 +112,7 @@ import { googleSignIn, getAccessToken } from '../services/firebase';
 
 interface AdminPanelProps {
   galleries: Gallery[];
-  onSaveGalleries: (galleries: Gallery[]) => void;
+  onSaveGalleries: (galleries: Gallery[]) => Promise<void> | void;
   onDeleteGallery?: (galleryId: string) => Promise<void> | void;
   onPreviewGallery: (gallery: Gallery) => void;
   onLockAdmin?: () => void;
@@ -448,9 +448,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         photos: mergedPhotos,
       };
 
-      await saveGalleryToCloud(updatedGallery);
       const nextList = galleries.map((item) => (item.id === gallery.id ? updatedGallery : item));
-      onSaveGalleries(nextList);
+      await onSaveGalleries(nextList);
 
       if (editingGalleryId === gallery.id) {
         setGalleryForm((prev) => ({
@@ -582,7 +581,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   // Convert fetched Drive photos into a live Gallery in 1-click
-  const handleCreateGalleryFromDrivePhotos = () => {
+  const handleCreateGalleryFromDrivePhotos = async () => {
     if (previewedDrivePhotos.length === 0) return;
 
     const cleanFolder = extractFolderId(driveFolderInput);
@@ -615,10 +614,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       createdAt: new Date().toISOString(),
     };
 
-    onSaveGalleries([newGallery, ...galleries]);
-    setPreviewedDrivePhotos([]);
-    setDriveSyncSuccess('¡Galería creada exitosamente con carpeta Drive vinculada!');
-    setActiveTab('galleries');
+    try {
+      await onSaveGalleries([newGallery, ...galleries]);
+      setPreviewedDrivePhotos([]);
+      setDriveSyncSuccess('¡Galería creada exitosamente con carpeta Drive vinculada y guardada en Firestore!');
+      setActiveTab('galleries');
+    } catch (err: any) {
+      setDriveSyncError(err?.message || 'No se pudo guardar la galería en Firestore.');
+    }
   };
 
   // Google Photos parsing & gallery creation handlers
@@ -734,23 +737,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     };
 
     const updatedGalleries = [newGallery, ...galleries];
-    onSaveGalleries(updatedGalleries);
-
     try {
-      await saveGalleryToCloud(newGallery);
-    } catch (e) {
-      console.warn('Could not save to Cloud Firestore immediately:', e);
+      await onSaveGalleries(updatedGalleries);
+      setGooglePhotosFeedback({
+        isError: false,
+        message: `🎉 ¡Galería "${title}" creada con éxito con ${googlePhotosParsedList.length} fotos y sincronizada en la nube!`,
+      });
+      setGooglePhotosInput('');
+      setGooglePhotosParsedList([]);
+      setGooglePhotosAlbumTitle('');
+      setActiveTab('galleries');
+    } catch (e: any) {
+      setGooglePhotosFeedback({
+        isError: true,
+        message: e?.message || 'No se pudo guardar la galería en Firestore.',
+      });
     }
-
-    setGooglePhotosFeedback({
-      isError: false,
-      message: `🎉 ¡Galería "${title}" creada con éxito con ${googlePhotosParsedList.length} fotos y sincronizada en la nube!`,
-    });
-
-    setGooglePhotosInput('');
-    setGooglePhotosParsedList([]);
-    setGooglePhotosAlbumTitle('');
-    setActiveTab('galleries');
   };
 
   // Connect Google Account for direct Drive listing
@@ -771,9 +773,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   // Save or Update custom gallery
-  const handleSaveGalleryForm = (e: React.FormEvent) => {
+  const handleSaveGalleryForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!galleryForm.title) return;
+    setGalleryActionFeedback(null);
 
     const cover =
       galleryForm.coverPhotoUrl ||
@@ -795,57 +798,64 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       : undefined;
     const cleanExpiresAt = galleryForm.expiresAt.trim() || undefined;
 
-    if (editingGalleryId) {
-      const updated = galleries.map((g) => {
-        if (g.id === editingGalleryId) {
-          return {
-            ...g,
-            title: galleryForm.title,
-            clientName: galleryForm.clientName,
-            clientEmail: galleryForm.clientEmail,
-            eventDate: galleryForm.eventDate,
-            location: galleryForm.location,
-            category: galleryForm.category,
-            coverPhotoUrl: cover,
-            description: galleryForm.description,
-            accessPin: galleryForm.accessPin,
-            downloadPin: galleryForm.downloadPin,
-            isPrivate: galleryForm.isPrivate,
-            driveFolderId: cleanDriveFolder,
-            expiresAt: cleanExpiresAt,
-            watermark: watermarkConfig,
-            photos: galleryForm.photos,
-          };
-        }
-        return g;
-      });
-      onSaveGalleries(updated);
-    } else {
-      const newGal: Gallery = {
-        id: `gal-${Date.now()}`,
-        title: galleryForm.title,
-        slug: galleryForm.title.toLowerCase().replace(/[^a-z0-9_-]/g, '-'),
-        clientName: galleryForm.clientName,
-        clientEmail: galleryForm.clientEmail,
-        eventDate: galleryForm.eventDate,
-        location: galleryForm.location,
-        category: galleryForm.category || categories[0] || 'Bodas',
-        coverPhotoUrl: cover,
-        description: galleryForm.description,
-        accessPin: galleryForm.accessPin,
-        downloadPin: galleryForm.downloadPin,
-        driveFolderId: cleanDriveFolder,
-        expiresAt: cleanExpiresAt,
-        watermark: watermarkConfig,
-        photos: galleryForm.photos,
-        isPrivate: galleryForm.isPrivate,
-        createdAt: new Date().toISOString(),
-      };
-      onSaveGalleries([newGal, ...galleries]);
-    }
+    try {
+      if (editingGalleryId) {
+        const updated = galleries.map((g) => {
+          if (g.id === editingGalleryId) {
+            return {
+              ...g,
+              title: galleryForm.title,
+              clientName: galleryForm.clientName,
+              clientEmail: galleryForm.clientEmail,
+              eventDate: galleryForm.eventDate,
+              location: galleryForm.location,
+              category: galleryForm.category,
+              coverPhotoUrl: cover,
+              description: galleryForm.description,
+              accessPin: galleryForm.accessPin,
+              downloadPin: galleryForm.downloadPin,
+              isPrivate: galleryForm.isPrivate,
+              driveFolderId: cleanDriveFolder,
+              expiresAt: cleanExpiresAt,
+              watermark: watermarkConfig,
+              photos: galleryForm.photos,
+            };
+          }
+          return g;
+        });
+        await onSaveGalleries(updated);
+      } else {
+        const newGal: Gallery = {
+          id: `gal-${Date.now()}`,
+          title: galleryForm.title,
+          slug: galleryForm.title.toLowerCase().replace(/[^a-z0-9_-]/g, '-'),
+          clientName: galleryForm.clientName,
+          clientEmail: galleryForm.clientEmail,
+          eventDate: galleryForm.eventDate,
+          location: galleryForm.location,
+          category: galleryForm.category || categories[0] || 'Bodas',
+          coverPhotoUrl: cover,
+          description: galleryForm.description,
+          accessPin: galleryForm.accessPin,
+          downloadPin: galleryForm.downloadPin,
+          driveFolderId: cleanDriveFolder,
+          expiresAt: cleanExpiresAt,
+          watermark: watermarkConfig,
+          photos: galleryForm.photos,
+          isPrivate: galleryForm.isPrivate,
+          createdAt: new Date().toISOString(),
+        };
+        await onSaveGalleries([newGal, ...galleries]);
+      }
 
-    setEditingGalleryId(null);
-    setActiveTab('galleries');
+      setEditingGalleryId(null);
+      setActiveTab('galleries');
+    } catch (err: any) {
+      setGalleryActionFeedback({
+        isError: true,
+        message: err?.message || 'No se pudieron guardar los cambios de la galería en Firestore.',
+      });
+    }
   };
 
   // Add photo to form
@@ -5180,9 +5190,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 setIsSavingCms(true);
                 setCmsSaveError(null);
                 try {
-                  saveSiteContent(cmsContent);
+                  const [optFavicon, optLogo, optPortrait] = await Promise.all([
+                    compressDataUrlIfOversized(cmsContent.general?.faviconUrl, 128, 128, 0.9, 45000),
+                    compressDataUrlIfOversized(cmsContent.general?.logoIconUrl, 400, 400, 0.88, 90000),
+                    compressDataUrlIfOversized(cmsContent.biography?.portraitUrl, 960, 1280, 0.84, 150000),
+                  ]);
+
+                  const optimizedCms: SiteContentConfig = {
+                    ...cmsContent,
+                    general: cmsContent.general
+                      ? {
+                          ...cmsContent.general,
+                          faviconUrl: optFavicon || cmsContent.general.faviconUrl || '',
+                          logoIconUrl: optLogo || cmsContent.general.logoIconUrl || '',
+                        }
+                      : cmsContent.general,
+                    biography: {
+                      ...cmsContent.biography,
+                      portraitUrl: optPortrait || cmsContent.biography.portraitUrl,
+                    },
+                  };
+
+                  setCmsContent(optimizedCms);
                   if (onSaveSiteContent) {
-                    await onSaveSiteContent(cmsContent);
+                    await onSaveSiteContent(optimizedCms);
+                  } else {
+                    saveSiteContent(optimizedCms);
                   }
                   setCmsSaveSuccess(true);
                   setTimeout(() => setCmsSaveSuccess(false), 3500);

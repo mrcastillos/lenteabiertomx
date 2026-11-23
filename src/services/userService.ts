@@ -1,5 +1,6 @@
 import { UserProfile } from '../types';
 import { saveUserToCloud, deleteUserFromCloud } from './firestoreSync';
+import { emitCloudStatus, formatFirestoreErrorReason } from './cloudFeedback';
 
 const STORAGE_KEY_USERS = 'lente_abierto_users_v2';
 const STORAGE_KEY_CURRENT_USER = 'lente_abierto_current_user_v3';
@@ -273,7 +274,21 @@ export function addUser(data: {
 
   const updated = [...users, newUser];
   saveStoredUsers(updated);
-  saveUserToCloud(newUser).catch(() => {});
+  saveUserToCloud(newUser)
+    .then(() => {
+      emitCloudStatus({
+        type: 'success',
+        title: 'Usuario guardado en Firestore',
+        message: `El perfil de ${newUser.name} se sincronizó correctamente.`,
+      });
+    })
+    .catch((err) => {
+      emitCloudStatus({
+        type: 'error',
+        title: 'No se guardó el usuario en Firestore',
+        message: formatFirestoreErrorReason(err),
+      });
+    });
   return newUser;
 }
 
@@ -295,7 +310,21 @@ export function deleteUser(id: string): { success: boolean; message: string } {
   }
 
   saveStoredUsers(filtered);
-  deleteUserFromCloud(id).catch(() => {});
+  deleteUserFromCloud(id)
+    .then(() => {
+      emitCloudStatus({
+        type: 'success',
+        title: 'Usuario eliminado en Firestore',
+        message: 'El perfil se eliminó correctamente de la base de datos.',
+      });
+    })
+    .catch((err) => {
+      emitCloudStatus({
+        type: 'error',
+        title: 'No se pudo eliminar el usuario en Firestore',
+        message: formatFirestoreErrorReason(err),
+      });
+    });
 
   // If deleting currently logged in user, logout
   const current = getCurrentUser();
@@ -401,7 +430,21 @@ export function updateUserProfile(id: string, updates: Partial<UserProfile>): Us
   }
 
   // Sync to Cloud Firestore
-  saveUserToCloud(updated).catch(() => {});
+  saveUserToCloud(updated)
+    .then(() => {
+      emitCloudStatus({
+        type: 'success',
+        title: 'Perfil actualizado en Firestore',
+        message: `Los cambios de ${updated.name} se guardaron en la nube.`,
+      });
+    })
+    .catch((err) => {
+      emitCloudStatus({
+        type: 'error',
+        title: 'No se guardaron los cambios del perfil en Firestore',
+        message: formatFirestoreErrorReason(err),
+      });
+    });
 
   return updated;
 }

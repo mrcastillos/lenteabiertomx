@@ -6,6 +6,7 @@ import {
   saveInquiryToCloud,
   saveSiteContentToCloud,
 } from './firestoreSync';
+import { emitCloudStatus, formatFirestoreErrorReason } from './cloudFeedback';
 import { DEFAULT_APPEARANCE } from '../utils/themePresets';
 
 const STORAGE_KEY_GALLERIES = 'lente_abierto_galleries_v2';
@@ -14,6 +15,91 @@ const STORAGE_KEY_FAVORITES = 'lente_abierto_favorites_v2';
 const STORAGE_KEY_DOWNLOAD_LOGS = 'lente_abierto_download_logs_v1';
 const STORAGE_KEY_FAVORITE_LOGS = 'lente_abierto_favorite_logs_v1';
 const STORAGE_KEY_CLIENT_SESSION = 'lente_abierto_client_session_v1';
+const STORAGE_KEY_PENDING_DL_LOGS = 'lente_abierto_pending_dl_logs_v1';
+const STORAGE_KEY_PENDING_FAV_LOGS = 'lente_abierto_pending_fav_logs_v1';
+
+function readPendingLogs<T>(key: string): T[] {
+  try {
+    const raw = localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePendingLogs<T>(key: string, items: T[]): void {
+  try {
+    if (items.length === 0) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, JSON.stringify(items.slice(0, 500)));
+    }
+  } catch {}
+}
+
+export function getPendingCloudLogsCount(): number {
+  return (
+    readPendingLogs<DownloadLog>(STORAGE_KEY_PENDING_DL_LOGS).length +
+    readPendingLogs<FavoriteLog>(STORAGE_KEY_PENDING_FAV_LOGS).length
+  );
+}
+
+export async function flushPendingCloudLogs(showToastIfSuccess = true): Promise<{
+  synced: number;
+  failed: number;
+}> {
+  const pendingDl = readPendingLogs<DownloadLog>(STORAGE_KEY_PENDING_DL_LOGS);
+  const pendingFav = readPendingLogs<FavoriteLog>(STORAGE_KEY_PENDING_FAV_LOGS);
+  if (pendingDl.length === 0 && pendingFav.length === 0) {
+    return { synced: 0, failed: 0 };
+  }
+
+  let synced = 0;
+  const remainingDl: DownloadLog[] = [];
+  const remainingFav: FavoriteLog[] = [];
+
+  for (const log of pendingDl) {
+    try {
+      await saveDownloadLogToCloud(log);
+      synced++;
+    } catch {
+      remainingDl.push(log);
+    }
+  }
+
+  for (const log of pendingFav) {
+    try {
+      await saveFavoriteLogToCloud(log);
+      synced++;
+    } catch {
+      remainingFav.push(log);
+    }
+  }
+
+  writePendingLogs(STORAGE_KEY_PENDING_DL_LOGS, remainingDl);
+  writePendingLogs(STORAGE_KEY_PENDING_FAV_LOGS, remainingFav);
+
+  const failed = remainingDl.length + remainingFav.length;
+  if (failed > 0) {
+    emitCloudStatus({
+      type: 'error',
+      title: 'Registros pendientes sin subir a Firestore',
+      message: `${failed} registro(s) de favoritos/descargas siguen respaldados en este navegador porque Firestore rechazó la escritura.`,
+      allowRetryLogs: true,
+      durationMs: 9000,
+    });
+  } else if (synced > 0 && showToastIfSuccess) {
+    emitCloudStatus({
+      type: 'success',
+      title: 'Registros sincronizados con Firestore',
+      message: `Se subieron correctamente ${synced} registro(s) pendientes de favoritos/descargas.`,
+      durationMs: 4500,
+    });
+  }
+
+  return { synced, failed };
+}
 
 export const INITIAL_GALLERIES: Gallery[] = [
   {
@@ -441,7 +527,22 @@ export function saveInquiry(inquiry: BookingInquiry): void {
   try {
     const current = getStoredInquiries();
     localStorage.setItem(STORAGE_KEY_INQUIRIES, JSON.stringify([inquiry, ...current]));
-    saveInquiryToCloud(inquiry).catch(() => {});
+    saveInquiryToCloud(inquiry)
+      .then(() => {
+        emitCloudStatus({
+          type: 'success',
+          title: 'Solicitud guardada en Firestore',
+          message: 'Tu consulta se envió y respaldó correctamente en la nube.',
+        });
+      })
+      .catch((err) => {
+        emitCloudStatus({
+          type: 'error',
+          title: 'No se guardó la solicitud en Firestore',
+          message: formatFirestoreErrorReason(err),
+          durationMs: 9000,
+        });
+      });
   } catch (e) {
     console.error('Error saving inquiry', e);
   }
@@ -786,9 +887,23 @@ export function saveSiteContent(content: SiteContentConfig, skipCloudSync = fals
   try {
     localStorage.setItem(STORAGE_KEY_SITE_CONTENT, JSON.stringify(content));
     if (!skipCloudSync) {
-      saveSiteContentToCloud(content).catch((e) => {
-        console.warn('Background site content sync to cloud failed:', e);
-      });
+      saveSiteContentToCloud(content)
+        .then(() => {
+          emitCloudStatus({
+            type: 'success',
+            title: 'Configuración guardada en Firestore',
+            message: 'Los cambios del sitio se sincronizaron correctamente en la nube.',
+          });
+        })
+        .catch((e) => {
+          console.warn('Background site content sync to cloud failed:', e);
+          emitCloudStatus({
+            type: 'error',
+            title: 'No se guardaron los cambios del sitio en Firestore',
+            message: formatFirestoreErrorReason(e),
+            durationMs: 9000,
+          });
+        });
     }
   } catch (e) {
     console.error('Error saving site content', e);
@@ -799,7 +914,22 @@ export function resetSiteContent(skipCloudSync = false): SiteContentConfig {
   try {
     localStorage.setItem(STORAGE_KEY_SITE_CONTENT, JSON.stringify(DEFAULT_SITE_CONTENT));
     if (!skipCloudSync) {
-      saveSiteContentToCloud(DEFAULT_SITE_CONTENT).catch(() => {});
+      saveSiteContentToCloud(DEFAULT_SITE_CONTENT)
+        .then(() => {
+          emitCloudStatus({
+            type: 'success',
+            title: 'Sitio restablecido en Firestore',
+            message: 'La configuración predeterminada se guardó en la nube.',
+          });
+        })
+        .catch((e) => {
+          emitCloudStatus({
+            type: 'error',
+            title: 'No se guardó el restablecimiento en Firestore',
+            message: formatFirestoreErrorReason(e),
+            durationMs: 9000,
+          });
+        });
     }
   } catch (e) {
     console.error('Error resetting site content', e);
@@ -832,7 +962,26 @@ export function recordDownloadLog(
   const updated = [newLog, ...current];
   try {
     localStorage.setItem(STORAGE_KEY_DOWNLOAD_LOGS, JSON.stringify(updated.slice(0, 500)));
-    saveDownloadLogToCloud(newLog).catch(() => {});
+    saveDownloadLogToCloud(newLog)
+      .then(() => {
+        emitCloudStatus({
+          type: 'success',
+          title: 'Descarga registrada en la nube',
+          message: `Se guardó el registro de descarga de ${logData.userName || logData.userEmail}.`,
+          durationMs: 3500,
+        });
+      })
+      .catch((err) => {
+        const pending = readPendingLogs<DownloadLog>(STORAGE_KEY_PENDING_DL_LOGS);
+        writePendingLogs(STORAGE_KEY_PENDING_DL_LOGS, [newLog, ...pending]);
+        emitCloudStatus({
+          type: 'error',
+          title: 'No se guardó el registro de descarga en Firestore',
+          message: `Se respaldó localmente para no perderlo. Motivo: ${formatFirestoreErrorReason(err)}`,
+          allowRetryLogs: true,
+          durationMs: 9000,
+        });
+      });
   } catch (e) {
     console.error('Error saving download log', e);
   }
@@ -915,7 +1064,26 @@ export function recordFavoriteLog(
   const updated = [newLog, ...current];
   try {
     localStorage.setItem(STORAGE_KEY_FAVORITE_LOGS, JSON.stringify(updated.slice(0, 1000)));
-    saveFavoriteLogToCloud(newLog).catch(() => {});
+    saveFavoriteLogToCloud(newLog)
+      .then(() => {
+        emitCloudStatus({
+          type: 'success',
+          title: 'Favorito guardado en Firestore',
+          message: `Selección de "${logData.photoTitle || 'foto'}" registrada en la nube.`,
+          durationMs: 3200,
+        });
+      })
+      .catch((err) => {
+        const pending = readPendingLogs<FavoriteLog>(STORAGE_KEY_PENDING_FAV_LOGS);
+        writePendingLogs(STORAGE_KEY_PENDING_FAV_LOGS, [newLog, ...pending]);
+        emitCloudStatus({
+          type: 'error',
+          title: 'No se guardó el favorito en Firestore',
+          message: `Se respaldó en este navegador para evitar pérdida. Motivo: ${formatFirestoreErrorReason(err)}`,
+          allowRetryLogs: true,
+          durationMs: 9000,
+        });
+      });
   } catch (e) {
     console.error('Error saving favorite log', e);
   }
@@ -932,9 +1100,27 @@ export function removeFavoriteLog(photoId: string, userEmail?: string): void {
     );
     const updated = current.filter((f) => !toRemove.includes(f));
     localStorage.setItem(STORAGE_KEY_FAVORITE_LOGS, JSON.stringify(updated));
+
+    // Also remove from pending queue if it hadn't uploaded yet
+    const removedIds = new Set(toRemove.map((i) => i.id));
+    const pendingFav = readPendingLogs<FavoriteLog>(STORAGE_KEY_PENDING_FAV_LOGS);
+    if (pendingFav.length > 0) {
+      writePendingLogs(
+        STORAGE_KEY_PENDING_FAV_LOGS,
+        pendingFav.filter((p) => !removedIds.has(p.id))
+      );
+    }
+
     for (const item of toRemove) {
       if (item.id) {
-        deleteFavoriteLogFromCloud(item.id).catch(() => {});
+        deleteFavoriteLogFromCloud(item.id).catch((err) => {
+          emitCloudStatus({
+            type: 'error',
+            title: 'No se pudo eliminar favorito en Firestore',
+            message: formatFirestoreErrorReason(err),
+            durationMs: 7000,
+          });
+        });
       }
     }
   } catch (e) {

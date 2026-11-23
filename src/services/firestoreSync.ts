@@ -92,10 +92,18 @@ export function subscribeToGalleries(
     async (snapshot) => {
       try {
         if (snapshot.empty) {
-          // Check whether galleries were already initialized/wiped so deleting the last gallery
-          // actually keeps Firestore empty and freed instead of re-seeding demo galleries.
+          // Never auto-seed from a stale/empty offline cache snapshot
+          if (snapshot.metadata.fromCache) {
+            return;
+          }
+
+          // Check whether the site or galleries were already initialized so existing setups
+          // never silently re-seed demo galleries when empty or during transient states.
           const siteSnap = await getDoc(doc(db, 'siteConfig', 'main')).catch(() => null);
-          const alreadyInitialized = Boolean(siteSnap?.exists() && siteSnap.data()?.galleriesInitialized);
+          const alreadyInitialized = Boolean(
+            siteSnap?.exists() &&
+              (siteSnap.data()?.galleriesInitialized || siteSnap.data()?.id === 'main')
+          );
 
           if (alreadyInitialized) {
             try {
@@ -201,9 +209,16 @@ export function subscribeToSiteContent(
     docRef,
     async (docSnap) => {
       if (!docSnap.exists()) {
+        if (docSnap.metadata.fromCache) {
+          return;
+        }
         try {
-          const initial = sanitizePayload({ ...DEFAULT_SITE_CONTENT, id: 'main' });
-          await setDoc(docRef, initial);
+          const initial = sanitizePayload({
+            ...DEFAULT_SITE_CONTENT,
+            id: 'main',
+            galleriesInitialized: true,
+          });
+          await setDoc(docRef, initial, { merge: true });
         } catch (e) {
           console.warn('Error auto-seeding siteConfig:', e);
         }
@@ -255,9 +270,10 @@ export async function saveSiteContentToCloud(content: SiteContentConfig): Promis
     const payload = sanitizePayload({
       ...content,
       id: 'main',
+      galleriesInitialized: true,
       updatedAt: new Date().toISOString(),
     });
-    await setDoc(doc(db, 'siteConfig', 'main'), payload);
+    await setDoc(doc(db, 'siteConfig', 'main'), payload, { merge: true });
     try {
       localStorage.setItem('lente_abierto_site_content_v2', JSON.stringify(content));
     } catch {}
@@ -440,6 +456,9 @@ export function subscribeToUsers(
     async (snapshot) => {
       try {
         if (snapshot.empty) {
+          if (snapshot.metadata.fromCache) {
+            return;
+          }
           console.log('Seeding default photographer profile to Firestore...');
           const initialUser = sanitizePayload(DEFAULT_PHOTOGRAPHER_PROFILE);
           await setDoc(doc(db, 'users', initialUser.id), initialUser);

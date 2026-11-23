@@ -11,6 +11,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { AuthModal } from './components/AuthModal';
 import { AdminAuthModal } from './components/AdminAuthModal';
 import { InstagramFeed } from './components/InstagramFeed';
+import { CloudSyncToast } from './components/CloudSyncToast';
 import { Gallery, UserProfile, SiteContentConfig, FavoriteLog } from './types';
 import {
   getStoredGalleries,
@@ -23,7 +24,9 @@ import {
   isGalleryPinVerifiedInSession,
   setGalleryPinVerifiedInSession,
   getGalleryShareUrl,
+  flushPendingCloudLogs,
 } from './services/storage';
+import { emitCloudStatus, formatFirestoreErrorReason } from './services/cloudFeedback';
 import {
   getCurrentUser,
   logoutUser,
@@ -105,6 +108,9 @@ export default function App() {
       setFavoriteLogs(cloudFavLogs);
     });
 
+    // Retry any locally backed-up favorite/download logs that failed previously
+    flushPendingCloudLogs(true).catch(() => {});
+
     return () => {
       unsubGalleries();
       unsubContent();
@@ -151,30 +157,78 @@ export default function App() {
   }, [siteContent]);
 
   const handleSaveGalleries = async (newGalleries: Gallery[]) => {
+    const prevById = new Map(galleries.map((item) => [item.id, item]));
+    const changedGalleries = newGalleries.filter((g) => {
+      const prev = prevById.get(g.id);
+      return !prev || JSON.stringify(prev) !== JSON.stringify(g);
+    });
+
     setGalleries(newGalleries);
     saveGalleries(newGalleries);
     if (selectedGallery) {
       const updated = newGalleries.find((g) => g.id === selectedGallery.id);
       if (updated) setSelectedGallery(updated);
     }
-    // Save to Firestore so every browser/device sees the galleries instantly
-    for (const g of newGalleries) {
+
+    if (changedGalleries.length === 0) return;
+
+    // Only write modified/new galleries to Firestore to protect quota and avoid partial loops
+    let savedCount = 0;
+    for (const g of changedGalleries) {
       try {
         await saveGalleryToCloud(g);
+        savedCount++;
       } catch (e) {
         console.error('Error saving gallery to cloud:', e);
+        emitCloudStatus({
+          type: 'error',
+          title: 'No se guardaron los cambios de la galería en Firestore',
+          message: `Galería "${g.title}": ${formatFirestoreErrorReason(e)}`,
+          durationMs: 12000,
+        });
+        throw e;
       }
+    }
+
+    if (savedCount > 0) {
+      emitCloudStatus({
+        type: 'success',
+        title: 'Cambios guardados en Firestore',
+        message:
+          savedCount === 1
+            ? `La galería "${changedGalleries[0].title}" se sincronizó correctamente en la nube.`
+            : `Se sincronizaron ${savedCount} galerías correctamente en la nube.`,
+      });
     }
   };
 
   const handleDeleteGallery = async (galleryId: string) => {
-    const updated = galleries.filter((g) => g.id !== galleryId);
-    setGalleries(updated);
-    saveGalleries(updated);
-    if (selectedGallery?.id === galleryId) {
-      setSelectedGallery(null);
+    const target = galleries.find((g) => g.id === galleryId);
+    try {
+      await deleteGalleryFromCloud(galleryId);
+      const updated = galleries.filter((g) => g.id !== galleryId);
+      setGalleries(updated);
+      saveGalleries(updated);
+      if (selectedGallery?.id === galleryId) {
+        setSelectedGallery(null);
+      }
+      emitCloudStatus({
+        type: 'success',
+        title: 'Galería eliminada en Firestore',
+        message: target
+          ? `"${target.title}" se eliminó correctamente de la base de datos.`
+          : 'La galería se eliminó correctamente.',
+      });
+    } catch (e) {
+      console.error('Error deleting gallery from cloud:', e);
+      emitCloudStatus({
+        type: 'error',
+        title: 'No se pudo eliminar la galería en Firestore',
+        message: formatFirestoreErrorReason(e),
+        durationMs: 12000,
+      });
+      throw e;
     }
-    await deleteGalleryFromCloud(galleryId);
   };
 
   const handleSaveSiteContent = async (updated: SiteContentConfig) => {
@@ -182,8 +236,19 @@ export default function App() {
     saveSiteContent(updated, true);
     try {
       await saveSiteContentToCloud(updated);
+      emitCloudStatus({
+        type: 'success',
+        title: 'Cambios guardados en Firestore',
+        message: 'La biografía, identidad, diseño y textos del sitio se guardaron correctamente.',
+      });
     } catch (e) {
       console.error('Error saving site content to cloud:', e);
+      emitCloudStatus({
+        type: 'error',
+        title: 'No se guardaron los cambios del sitio en Firestore',
+        message: formatFirestoreErrorReason(e),
+        durationMs: 12000,
+      });
       throw e;
     }
   };
@@ -553,6 +618,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Global Cloud Save Status Toast / Error Popup */}
+      <CloudSyncToast />
     </div>
   );
 }
