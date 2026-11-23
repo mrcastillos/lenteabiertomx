@@ -76,7 +76,7 @@ export async function getCleanPhotoBlob(
  */
 export async function downloadSingleCleanPhoto(
   photo: Photo,
-  galleryTitle: string,
+  _galleryTitle: string,
   accessToken?: string | null
 ): Promise<void> {
   const sanitizedTitle = (photo.title || 'fotografia')

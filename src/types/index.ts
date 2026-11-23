@@ -62,6 +62,7 @@ export interface Gallery {
   createdAt: string;
   viewsCount?: number;
   expiresAt?: string;
+  displayOrder?: number;
 }
 
 export interface InstagramPost {
@@ -217,6 +218,7 @@ export interface SiteContentConfig {
     pricingNotice: string;
     pricingPackages: PricingPackage[];
   };
+  instagramPosts?: InstagramPost[];
 }
 
 export interface DownloadLog {
@@ -225,6 +227,8 @@ export interface DownloadLog {
   galleryTitle: string;
   photoId?: string;
   photoTitle?: string;
+  photoUrl?: string;
+  photoThumbnailUrl?: string;
   type: 'single' | 'zip';
   userName: string;
   userEmail: string;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Heart, X, User, Mail, Phone, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
+import { Heart, X, User, Mail, Phone, AlertCircle } from 'lucide-react';
 import { getClientSessionInfo, setClientSessionInfo } from '../services/storage';
 
 interface FavoriteAuthModalProps {

@@ -183,6 +183,8 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
         galleryTitle: gallery.title,
         photoId: currentPhoto.id,
         photoTitle: currentPhoto.title || 'Foto Individual',
+        photoUrl: currentPhoto.url,
+        photoThumbnailUrl: currentPhoto.thumbnailUrl || currentPhoto.url,
         type: 'single',
         userName: client.name,
         userEmail: client.email,

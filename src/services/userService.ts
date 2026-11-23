@@ -107,10 +107,6 @@ export function authenticateUserForBackend(
   return { success: false, message: 'Usuario o contraseña incorrectos.' };
 }
 
-export function verifyAdminCredentials(user: string, pass: string): boolean {
-  return authenticateUserForBackend(user, pass).success;
-}
-
 export const DEFAULT_PHOTOGRAPHER_PROFILE: UserProfile = {
   id: 'usr-martin-castillo',
   name: 'Martín Castillo',
@@ -127,7 +123,7 @@ export const DEFAULT_PHOTOGRAPHER_PROFILE: UserProfile = {
 
 Su filosofía visual se aleja de las poses rígidas para buscar la emoción genuina, el claroscuro orgánico y la riqueza textural de la arquitectura mexicana (desde la cantera verde oaxaqueña hasta el minimalismo cálido de Barragán y las haciendas coloniales del Bajío).
 
-Ha sido galardonado en certámenes internacionales de fotografía documental y su trabajo editorial ha aparecido en publicaciones como Vogue México, Bodas & Tradición y Architectural Digest Latinoamérica. Su flujo de trabajo digital combina sensores de ultra alta resolución Full Frame de 61 MP, óptica prime de máxima apertura y calibración cromática precisa para entregas editoriales impecables a través de galerías privadas estilo Pixieset.`,
+Ha sido galardonado en certámenes internacionales de fotografía documental y su trabajo editorial ha aparecido en publicaciones como Vogue México, Bodas & Tradición y Architectural Digest Latinoamérica. Su flujo de trabajo digital combina sensores de ultra alta resolución Full Frame de 61 MP, óptica prime de máxima apertura y calibración cromática precisa para entregas editoriales impecables a través de galerías privadas en línea.`,
   specialties: [
     'Bodas de Destino (Destination Weddings)',
     'Retratos Editoriales & Fine Art',

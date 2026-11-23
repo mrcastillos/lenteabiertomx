@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { GalleryGrid } from './components/GalleryGrid';
@@ -48,13 +48,24 @@ import {
 } from './services/firestoreSync';
 import { DEFAULT_APPEARANCE, getReadableContrastColor, isLightColor } from './utils/themePresets';
 
+type AppTab = 'galleries' | 'biography' | 'contact' | 'portal' | 'admin' | 'profile';
+
+interface AppHistoryState {
+  lenteApp: true;
+  tab: AppTab;
+  galleryId: string | null;
+  lightbox: boolean;
+  photoId: string | null;
+  depth: number;
+}
+
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<
-    'galleries' | 'biography' | 'contact' | 'portal' | 'admin' | 'profile'
-  >('biography');
+  const [currentTab, setCurrentTab] = useState<AppTab>('biography');
 
   const [galleries, setGalleries] = useState<Gallery[]>([]);
+  const galleriesRef = useRef<Gallery[]>([]);
   const [selectedGallery, setSelectedGallery] = useState<Gallery | null>(null);
+  const [previewPhotoId, setPreviewPhotoId] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [favoriteLogs, setFavoriteLogs] = useState<FavoriteLog[]>(() => getStoredFavoriteLogs());
   const [currentUser, setUser] = useState<UserProfile | null>(null);
@@ -74,17 +85,54 @@ export default function App() {
   const [privateLinkPinInput, setPrivateLinkPinInput] = useState('');
   const [privateLinkPinError, setPrivateLinkPinError] = useState(false);
 
-  // Initialize data on mount
+  useEffect(() => {
+    galleriesRef.current = galleries;
+  }, [galleries]);
+
+  // Initialize data & browser history navigation on mount
   useEffect(() => {
     const loadedGalleries = getStoredGalleries();
+    galleriesRef.current = loadedGalleries;
     setGalleries(loadedGalleries);
     setFavorites(getFavorites());
     setUser(getCurrentUser());
     setIsAdmin(isAdminLoggedIn());
     setIsSuperAdmin(isSuperAdminLoggedIn());
 
+    // Anchor root history entry so Back/Forward stays consistent inside the SPA
+    try {
+      if (!window.history.state?.lenteApp) {
+        const initialState: AppHistoryState = {
+          lenteApp: true,
+          tab: 'biography',
+          galleryId: null,
+          lightbox: false,
+          photoId: null,
+          depth: 0,
+        };
+        window.history.replaceState(initialState, '', window.location.href);
+      }
+    } catch {}
+
+    const handlePopState = (event: PopStateEvent) => {
+      const state = event.state as AppHistoryState | null;
+      if (!state || !state.lenteApp) return;
+
+      const safeTab: AppTab = state.tab === 'admin' && !isAdminLoggedIn() ? 'biography' : state.tab;
+      const targetGallery = state.galleryId
+        ? galleriesRef.current.find((g) => g.id === state.galleryId) || null
+        : null;
+
+      setCurrentTab(safeTab);
+      setSelectedGallery(targetGallery);
+      setPreviewPhotoId(targetGallery && state.lightbox ? state.photoId || null : null);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
     // Subscribe to live cloud galleries from Firestore
     const unsubGalleries = subscribeToGalleries((cloudGalleries) => {
+      galleriesRef.current = cloudGalleries;
       setGalleries(cloudGalleries);
       setSelectedGallery((prev) => (prev ? cloudGalleries.find((g) => g.id === prev.id) || prev : null));
     });
@@ -112,6 +160,7 @@ export default function App() {
     flushPendingCloudLogs(true).catch(() => {});
 
     return () => {
+      window.removeEventListener('popstate', handlePopState);
       unsubGalleries();
       unsubContent();
       unsubUsers();
@@ -211,6 +260,15 @@ export default function App() {
       saveGalleries(updated);
       if (selectedGallery?.id === galleryId) {
         setSelectedGallery(null);
+        setPreviewPhotoId(null);
+        replaceAppHistoryState({
+          lenteApp: true,
+          tab: currentTab,
+          galleryId: null,
+          lightbox: false,
+          photoId: null,
+          depth: getCurrentHistoryDepth(),
+        }, getCleanUrlWithoutGallery());
       }
       emitCloudStatus({
         type: 'success',
@@ -258,17 +316,42 @@ export default function App() {
     setFavorites(updated);
   };
 
-  const clearGalleryQueryParam = () => {
+  const getCurrentHistoryDepth = (): number => {
+    try {
+      const state = window.history.state as AppHistoryState | null;
+      return state?.lenteApp && typeof state.depth === 'number' ? state.depth : 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  const getCleanUrlWithoutGallery = (): string => {
     try {
       const url = new URL(window.location.href);
-      if (url.searchParams.has('galeria')) {
-        url.searchParams.delete('galeria');
-        window.history.replaceState(null, '', url.pathname + url.search + url.hash);
-      }
+      url.searchParams.delete('galeria');
+      return url.pathname + url.search + url.hash;
+    } catch {
+      return window.location.pathname || '/';
+    }
+  };
+
+  const pushAppHistoryState = (nextState: AppHistoryState, targetUrl?: string) => {
+    try {
+      window.history.pushState(nextState, '', targetUrl || window.location.href);
     } catch {}
   };
 
-  const handleSelectGallery = (gallery: Gallery) => {
+  const replaceAppHistoryState = (nextState: AppHistoryState, targetUrl?: string) => {
+    try {
+      window.history.replaceState(nextState, '', targetUrl || window.location.href);
+    } catch {}
+  };
+
+  const handleSelectGallery = (
+    gallery: Gallery,
+    initialPhotoId?: string,
+    options?: { replaceHistory?: boolean }
+  ) => {
     const viewKey = `lente_abierto_viewed_${gallery.id}`;
     let alreadyViewed = false;
     try {
@@ -278,9 +361,49 @@ export default function App() {
       }
     } catch {}
 
-    try {
-      window.history.replaceState(null, '', getGalleryShareUrl(gallery));
-    } catch {}
+    const shareUrl = getGalleryShareUrl(gallery);
+    const currentDepth = getCurrentHistoryDepth();
+
+    if (options?.replaceHistory) {
+      replaceAppHistoryState(
+        {
+          lenteApp: true,
+          tab: 'galleries',
+          galleryId: gallery.id,
+          lightbox: Boolean(initialPhotoId),
+          photoId: initialPhotoId || null,
+          depth: currentDepth,
+        },
+        shareUrl
+      );
+    } else {
+      pushAppHistoryState(
+        {
+          lenteApp: true,
+          tab: currentTab,
+          galleryId: gallery.id,
+          lightbox: false,
+          photoId: null,
+          depth: currentDepth + 1,
+        },
+        shareUrl
+      );
+      if (initialPhotoId) {
+        pushAppHistoryState(
+          {
+            lenteApp: true,
+            tab: currentTab,
+            galleryId: gallery.id,
+            lightbox: true,
+            photoId: initialPhotoId,
+            depth: currentDepth + 2,
+          },
+          shareUrl
+        );
+      }
+    }
+
+    setPreviewPhotoId(initialPhotoId || null);
 
     if (!alreadyViewed) {
       const nextViews = (gallery.viewsCount || 0) + 1;
@@ -313,22 +436,84 @@ export default function App() {
       setPrivateLinkPinInput('');
       setPrivateLinkPinError(false);
     } else {
-      handleSelectGallery(matched);
+      handleSelectGallery(matched, undefined, { replaceHistory: true });
     }
   }, [pendingSharedSlug, galleries]);
 
-  const handleCloseGallery = () => {
-    setSelectedGallery(null);
-    clearGalleryQueryParam();
+  const handleOpenLightbox = (photoId: string) => {
+    const currentDepth = getCurrentHistoryDepth();
+    pushAppHistoryState({
+      lenteApp: true,
+      tab: currentTab,
+      galleryId: selectedGallery?.id || null,
+      lightbox: true,
+      photoId,
+      depth: currentDepth + 1,
+    });
+    setPreviewPhotoId(photoId);
   };
 
-  const handleSelectTab = (tab: 'galleries' | 'biography' | 'contact' | 'portal' | 'admin' | 'profile') => {
+  // Navigating Prev/Next inside Lightbox must NOT push extra history entries
+  const handleNavigateLightbox = (photoId: string) => {
+    setPreviewPhotoId(photoId);
+  };
+
+  const handleCloseLightbox = () => {
+    const state = window.history.state as AppHistoryState | null;
+    if (state?.lenteApp && state.lightbox && (state.depth ?? 0) > 0) {
+      window.history.back();
+    } else {
+      setPreviewPhotoId(null);
+    }
+  };
+
+  const handleCloseGallery = () => {
+    const state = window.history.state as AppHistoryState | null;
+    if (state?.lenteApp && state.galleryId && !state.lightbox && (state.depth ?? 0) > 0) {
+      window.history.back();
+      return;
+    }
+
+    const nextDepth = getCurrentHistoryDepth() + 1;
+    pushAppHistoryState(
+      {
+        lenteApp: true,
+        tab: 'galleries',
+        galleryId: null,
+        lightbox: false,
+        photoId: null,
+        depth: nextDepth,
+      },
+      getCleanUrlWithoutGallery()
+    );
+    setSelectedGallery(null);
+    setPreviewPhotoId(null);
+    setCurrentTab('galleries');
+  };
+
+  const handleSelectTab = (tab: AppTab) => {
     if (tab === 'admin' && !isAdmin) {
       setIsAdminAuthModalOpen(true);
       return;
     }
+    if (currentTab === tab && !selectedGallery && !previewPhotoId) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    const nextDepth = getCurrentHistoryDepth() + 1;
+    pushAppHistoryState(
+      {
+        lenteApp: true,
+        tab,
+        galleryId: null,
+        lightbox: false,
+        photoId: null,
+        depth: nextDepth,
+      },
+      getCleanUrlWithoutGallery()
+    );
     setSelectedGallery(null);
-    clearGalleryQueryParam();
+    setPreviewPhotoId(null);
     setCurrentTab(tab);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -339,6 +524,17 @@ export default function App() {
     setAdminLoggedIn(false);
     setSuperAdminLoggedIn(false);
     if (currentTab === 'admin') {
+      replaceAppHistoryState(
+        {
+          lenteApp: true,
+          tab: 'biography',
+          galleryId: null,
+          lightbox: false,
+          photoId: null,
+          depth: getCurrentHistoryDepth(),
+        },
+        getCleanUrlWithoutGallery()
+      );
       setCurrentTab('biography');
     }
   };
@@ -349,6 +545,19 @@ export default function App() {
     setAdminLoggedIn(true);
     setSuperAdminLoggedIn(superAdmin);
     setSelectedGallery(null);
+    setPreviewPhotoId(null);
+    const nextDepth = getCurrentHistoryDepth() + 1;
+    pushAppHistoryState(
+      {
+        lenteApp: true,
+        tab: 'admin',
+        galleryId: null,
+        lightbox: false,
+        photoId: null,
+        depth: nextDepth,
+      },
+      getCleanUrlWithoutGallery()
+    );
     setCurrentTab('admin');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -357,6 +566,19 @@ export default function App() {
     logoutUser();
     setUser(null);
     handleLockAdmin();
+    replaceAppHistoryState(
+      {
+        lenteApp: true,
+        tab: 'biography',
+        galleryId: null,
+        lightbox: false,
+        photoId: null,
+        depth: getCurrentHistoryDepth(),
+      },
+      getCleanUrlWithoutGallery()
+    );
+    setSelectedGallery(null);
+    setPreviewPhotoId(null);
     setCurrentTab('biography');
   };
 
@@ -393,6 +615,12 @@ export default function App() {
             onToggleFavorite={handleToggleFavorite}
             brandName={siteContent.general?.brandName}
             brandLogoUrl={siteContent.general?.logoIconUrl}
+            initialPhotoId={previewPhotoId || undefined}
+            whatsappNumber={siteContent.contact?.whatsapp || siteContent.contact?.phone || '527773743420'}
+            lightboxPhotoId={previewPhotoId}
+            onOpenLightbox={handleOpenLightbox}
+            onNavigateLightbox={handleNavigateLightbox}
+            onCloseLightbox={handleCloseLightbox}
           />
         ) : (
           <>
@@ -403,20 +631,14 @@ export default function App() {
                 favorites={favorites}
                 favoriteLogs={favoriteLogs}
                 onSelectGallery={handleSelectGallery}
-                onOpenPortal={() => {
-                  setCurrentTab('portal');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
+                onOpenPortal={() => handleSelectTab('portal')}
               />
             )}
 
             {currentTab === 'biography' && (
               <BiographyPage
                 biography={siteContent.biography}
-                onContactClick={() => {
-                  setCurrentTab('contact');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
+                onContactClick={() => handleSelectTab('contact')}
               />
             )}
 
@@ -497,7 +719,11 @@ export default function App() {
 
       {/* Instagram Feed Showcase (@lente.abierto.mx) */}
       <div className="site-theme-scope" data-theme-light={isLightTheme ? 'true' : 'false'}>
-        <InstagramFeed galleries={galleries} portraitUrl={siteContent.biography.portraitUrl} />
+        <InstagramFeed
+          galleries={galleries}
+          portraitUrl={siteContent.biography.portraitUrl}
+          customPosts={siteContent.instagramPosts}
+        />
       </div>
 
       {/* Editorial Luxury Footer */}
@@ -569,7 +795,7 @@ export default function App() {
                   setGalleryPinVerifiedInSession(target.id);
                   setPrivateLinkGallery(null);
                   setPrivateLinkPinError(false);
-                  handleSelectGallery(target);
+                  handleSelectGallery(target, undefined, { replaceHistory: true });
                 } else {
                   setPrivateLinkPinError(true);
                 }
@@ -601,7 +827,17 @@ export default function App() {
                   type="button"
                   onClick={() => {
                     setPrivateLinkGallery(null);
-                    clearGalleryQueryParam();
+                    replaceAppHistoryState(
+                      {
+                        lenteApp: true,
+                        tab: currentTab,
+                        galleryId: null,
+                        lightbox: false,
+                        photoId: null,
+                        depth: getCurrentHistoryDepth(),
+                      },
+                      getCleanUrlWithoutGallery()
+                    );
                   }}
                   className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 text-xs uppercase tracking-wider"
                 >

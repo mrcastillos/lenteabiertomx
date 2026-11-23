@@ -712,6 +712,9 @@ export function getStoredInstagramPosts(): InstagramPost[] {
 export function saveInstagramPosts(posts: InstagramPost[]): void {
   try {
     localStorage.setItem(STORAGE_KEY_INSTAGRAM_POSTS, JSON.stringify(posts));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('lente-abierto-ig-updated', { detail: posts }));
+    }
   } catch (e) {
     console.error('Error saving instagram posts to storage', e);
   }
@@ -720,6 +723,11 @@ export function saveInstagramPosts(posts: InstagramPost[]): void {
 export function resetInstagramPosts(): InstagramPost[] {
   try {
     localStorage.setItem(STORAGE_KEY_INSTAGRAM_POSTS, JSON.stringify(DEFAULT_INSTAGRAM_POSTS));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('lente-abierto-ig-updated', { detail: DEFAULT_INSTAGRAM_POSTS })
+      );
+    }
   } catch (e) {
     console.error('Error resetting instagram posts', e);
   }
@@ -734,21 +742,21 @@ const STORAGE_KEY_SITE_CONTENT = 'lente_abierto_site_content_v2';
 export const DEFAULT_SITE_CONTENT: SiteContentConfig = {
   appearance: DEFAULT_APPEARANCE,
   general: {
-    pageTitle: 'Lente Abierto MX · Fotografía Editorial & Bodas de Destino',
-    pageDescription: 'Portafolio de fotografía de autor, bodas de destino, retrato editorial y arquitectura en México. Entrega digital de alta fidelidad estilo Pixieset.',
+    pageTitle: 'Lente Abierto MX · Portafolio y Galerías Fotográficas',
+    pageDescription: 'Portafolio de fotografía de autor, bodas de destino, retrato editorial y arquitectura en México. Entrega digital privada de alta fidelidad.',
     brandName: 'Lente Abierto MX',
-    brandTagline: 'Fotografía de Autor · Pixieset Edition',
+    brandTagline: 'Fotografía de Autor · México',
     faviconUrl: '',
     logoIconUrl: '',
     footerDescription:
-      'Plataforma de portafolio y entrega de galerías fotográficas de alta fidelidad estilo Pixieset. Capturando la luz, arquitectura y autenticidad del México contemporáneo con respeto visual y técnica editorial.',
+      'Plataforma de portafolio y entrega privada de galerías fotográficas de alta fidelidad. Capturando la luz, arquitectura y autenticidad del México contemporáneo con respeto visual y técnica editorial.',
     footerSecurityText: 'Descargas seguras protegidas con PIN & Marcas de agua',
   },
   hero: {
     badge: 'Colecciones & Galerías Privadas',
     title: 'Historias Capturadas en Luz Natural',
     subtitle:
-      'Explora los álbumes y entregas exclusivas de Lente Abierto MX. Entregas estilo Pixieset protegidas con marcas de agua, descargas en alta resolución y sincronización con Google Drive.',
+      'Explora los álbumes y entregas exclusivas de Lente Abierto MX. Galerías digitales protegidas con marcas de agua, descargas en alta resolución y sincronización con Google Drive.',
     clientPortalCta: '¿Eres cliente? Accede a tu galería privada con tu PIN',
   },
   announcement: {
@@ -807,7 +815,7 @@ export const DEFAULT_SITE_CONTENT: SiteContentConfig = {
         items: ['Profoto A10 AirX', 'Modificadores Octa OCF', 'Luz continua bi-color CRI 98+'],
       },
       {
-        title: 'Entrega Pixieset & Resguardo',
+        title: 'Entrega Digital & Resguardo',
         items: ['Galerías privadas con PIN de apertura', 'Descargas limpias individuales y en ZIP', 'Sincronización con Google Drive'],
       },
     ],
@@ -827,7 +835,7 @@ export const DEFAULT_SITE_CONTENT: SiteContentConfig = {
     instagramHandle: '@lente.abierto.mx',
     pricingTitle: 'Colecciones & Guía de Inversión',
     pricingNotice:
-      'Todas las colecciones incluyen galería en línea Pixieset de alta resolución, descargas sin marcas de agua con PIN personalizado y resguardo digital en nube privada.',
+      'Todas las colecciones incluyen galería digital privada de alta resolución, descargas sin marcas de agua con PIN personalizado y resguardo en nube privada.',
     pricingPackages: [
       {
         id: 'pkg-1',
@@ -845,7 +853,7 @@ export const DEFAULT_SITE_CONTENT: SiteContentConfig = {
         id: 'pkg-3',
         name: 'Boda de Destino Completa (Full Day)',
         price: 'Desde $48,000 MXN',
-        description: 'Cobertura ilimitada de 10 a 12 horas, dos fotógrafos, preboda de cortesía, galería Pixieset completa y descarga ZIP.',
+        description: 'Cobertura ilimitada de 10 a 12 horas, dos fotógrafos, preboda de cortesía, galería privada completa y descarga ZIP.',
       },
     ],
   },
@@ -1237,57 +1245,6 @@ export function getGalleryExpirationStatus(gallery: Gallery): {
     daysRemaining: diffDays,
     formattedDate,
   };
-}
-
-export function exportAllDataAsJson(): string {
-  const data = {
-    app: 'Lente Abierto MX',
-    version: '2.0.0',
-    exportedAt: new Date().toISOString(),
-    galleries: getStoredGalleries(),
-    categories: getStoredCategories(),
-    siteContent: getStoredSiteContent(),
-    instagramPosts: getStoredInstagramPosts(),
-  };
-  return JSON.stringify(data, null, 2);
-}
-
-export function importAllDataFromJson(jsonStr: string): { success: boolean; message: string } {
-  try {
-    const parsed = JSON.parse(jsonStr);
-    if (!parsed || typeof parsed !== 'object') {
-      return { success: false, message: 'El archivo no contiene un JSON válido.' };
-    }
-    if (Array.isArray(parsed.galleries) && parsed.galleries.length > 0) {
-      saveGalleries(parsed.galleries);
-    }
-    if (Array.isArray(parsed.categories) && parsed.categories.length > 0) {
-      saveCategories(parsed.categories);
-    }
-    if (parsed.siteContent && typeof parsed.siteContent === 'object') {
-      saveSiteContent(parsed.siteContent);
-    }
-    if (Array.isArray(parsed.instagramPosts) && parsed.instagramPosts.length > 0) {
-      saveInstagramPosts(parsed.instagramPosts);
-    }
-    return { success: true, message: 'Datos sincronizados exitosamente en este navegador.' };
-  } catch (err: any) {
-    return { success: false, message: err?.message || 'Error al importar archivo de sincronización.' };
-  }
-}
-
-export function clearBrowserCacheAndReload(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY_GALLERIES);
-    localStorage.removeItem(STORAGE_KEY_CATEGORIES);
-    localStorage.removeItem(STORAGE_KEY_SITE_CONTENT);
-    localStorage.removeItem(STORAGE_KEY_INSTAGRAM_POSTS);
-    localStorage.removeItem(STORAGE_KEY_FAVORITES);
-    sessionStorage.clear();
-  } catch (e) {
-    console.error('Error clearing cache', e);
-  }
-  window.location.reload();
 }
 
 

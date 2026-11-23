@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, X, ShieldAlert, Eye, EyeOff, KeyRound, Sparkles, UserCheck } from 'lucide-react';
+import { Lock, X, ShieldAlert, Eye, EyeOff, KeyRound, UserCheck } from 'lucide-react';
 import {
   authenticateUserForBackend,
   setAdminLoggedIn,

@@ -1,16 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  User,
   Mail,
   Phone,
   MapPin,
   Instagram,
-  Globe,
   Camera,
   Edit3,
-  Check,
   Shield,
-  Layers,
   Sparkles,
   ArrowRight,
   Upload,

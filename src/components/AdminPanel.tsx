@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Layers,
   Plus,
   RefreshCw,
   FolderSync,
@@ -27,14 +26,11 @@ import {
   ShieldCheck,
   Globe,
   Share2,
-  FileText,
   DollarSign,
   BookOpen,
-  UserCheck,
   Bell,
   Instagram,
   UserPlus,
-  EyeOff,
   Upload,
   Search,
   Download,
@@ -44,6 +40,9 @@ import {
   AlertTriangle,
   RotateCcw,
   Clock,
+  ArrowUp,
+  ArrowDown,
+  FileArchive,
 } from 'lucide-react';
 import {
   Gallery,
@@ -66,7 +65,6 @@ import {
   extractFolderId,
   APPS_SCRIPT_DRIVE_API_URL,
   listDriveFolders,
-  createDriveFolder,
   listPhotosInDriveFolder,
 } from '../services/googleDrive';
 import {
@@ -116,7 +114,7 @@ interface AdminPanelProps {
   galleries: Gallery[];
   onSaveGalleries: (galleries: Gallery[]) => Promise<void> | void;
   onDeleteGallery?: (galleryId: string) => Promise<void> | void;
-  onPreviewGallery: (gallery: Gallery) => void;
+  onPreviewGallery: (gallery: Gallery, initialPhotoId?: string) => void;
   onLockAdmin?: () => void;
   siteContent?: SiteContentConfig;
   onSaveSiteContent?: (content: SiteContentConfig) => Promise<void> | void;
@@ -144,8 +142,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isSyncingUsersCloud, setIsSyncingUsersCloud] = useState(false);
   const [cmsSubTab, setCmsSubTab] = useState<'general' | 'appearance' | 'bio' | 'hero' | 'contact' | 'pricing' | 'announcement' | 'instagram'>('general');
 
-  // Gallery Drive Refresh & Delete Modal State
+  // Gallery Drive Refresh, Reorder & Delete Modal State
   const [syncingGalleryId, setSyncingGalleryId] = useState<string | null>(null);
+  const [isReorderingGalleries, setIsReorderingGalleries] = useState(false);
   const [galleryActionFeedback, setGalleryActionFeedback] = useState<{ isError: boolean; message: string } | null>(null);
   const [galleryToDelete, setGalleryToDelete] = useState<Gallery | null>(null);
   const [isDeletingGallery, setIsDeletingGallery] = useState(false);
@@ -168,7 +167,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Favorites Logs State
   const [favoriteLogs, setFavoriteLogs] = useState<FavoriteLog[]>([]);
   const [favoriteSearch, setFavoriteSearch] = useState('');
-  const [selectedClientForFavs, setSelectedClientForFavs] = useState<string | null>(null);
 
   // Users & Collaborators State
   const [userList, setUserList] = useState<UserProfile[]>([]);
@@ -231,16 +229,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [googlePhotosAlbumTitle, setGooglePhotosAlbumTitle] = useState('');
   const [googlePhotosCategory, setGooglePhotosCategory] = useState('Bodas');
   const [googlePhotosLocation, setGooglePhotosLocation] = useState('México');
-  const [googlePhotosPin, setGooglePhotosPin] = useState('2026');
+  const [googlePhotosPin] = useState('2026');
   const [googlePhotosDownloadPin, setGooglePhotosDownloadPin] = useState('8309');
   const [googlePhotosFeedback, setGooglePhotosFeedback] = useState<{ isError: boolean; message: string } | null>(null);
   const [googlePhotosParsedList, setGooglePhotosParsedList] = useState<Photo[]>([]);
 
   // Instagram CMS State
   const [instagramPostsList, setInstagramPostsList] = useState<InstagramPost[]>(getStoredInstagramPosts());
-  const [editingIgPost, setEditingIgPost] = useState<InstagramPost | null>(null);
   const [igFeedback, setIgFeedback] = useState<string | null>(null);
-  const igImageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setUserList(getStoredUsers());
@@ -276,8 +272,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   useEffect(() => {
     if (siteContent) {
       setCmsContent(siteContent);
+      if (siteContent.instagramPosts && siteContent.instagramPosts.length > 0) {
+        setInstagramPostsList(siteContent.instagramPosts);
+      }
     }
   }, [siteContent]);
+
+  const updateInstagramPostsState = (updated: InstagramPost[]) => {
+    setInstagramPostsList(updated);
+    saveInstagramPosts(updated);
+    setCmsContent((prev) => ({ ...prev, instagramPosts: updated }));
+  };
 
   const [inquiries, setInquiries] = useState<BookingInquiry[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -549,6 +554,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       });
     } finally {
       setIsDeletingGallery(false);
+    }
+  };
+
+  const handleMoveGalleryOrder = async (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= galleries.length || isReorderingGalleries) return;
+
+    setIsReorderingGalleries(true);
+    setGalleryActionFeedback(null);
+    try {
+      const copy = [...galleries];
+      const [moved] = copy.splice(index, 1);
+      copy.splice(targetIndex, 0, moved);
+      const reordered = copy.map((g, i) => ({
+        ...g,
+        displayOrder: i + 1,
+      }));
+      await onSaveGalleries(reordered);
+      setGalleryActionFeedback({
+        isError: false,
+        message: `Orden actualizado: "${moved.title}" ahora ocupa la posición #${targetIndex + 1} en Galerías.`,
+      });
+      setTimeout(() => setGalleryActionFeedback(null), 3500);
+    } catch (err: any) {
+      setGalleryActionFeedback({
+        isError: true,
+        message: err?.message || 'No se pudo guardar el nuevo orden de colecciones.',
+      });
+    } finally {
+      setIsReorderingGalleries(false);
     }
   };
 
@@ -919,7 +954,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <div className="flex flex-wrap items-center gap-2 mb-1">
               <span className="flex items-center gap-1.5 text-amber-400 text-xs uppercase tracking-widest font-mono">
                 <Sparkles className="w-4 h-4" />
-                <span>Panel de Administración · Pixieset Core</span>
+                <span>Panel de Administración · Lente Abierto Core</span>
               </span>
               <span className="text-[10px] font-mono uppercase bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full">
                 {isSuperAdmin ? 'Modo Super Administrador' : 'Sesión de Gestión Activa'}
@@ -1177,7 +1212,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {galleries.map((gallery) => {
+              {galleries.map((gallery, idx) => {
                 const isSyncingThis = syncingGalleryId === gallery.id;
                 const linkedFolder = inferDriveFolderId(gallery);
                 return (
@@ -1207,6 +1242,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               Pública
                             </span>
                           )}
+                        </div>
+
+                        <div className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-md border border-white/10 text-[10px] font-mono text-zinc-200">
+                          Orden #{idx + 1}
                         </div>
 
                         <div className="absolute bottom-2 right-3 flex items-center gap-1.5 text-[11px] font-mono text-zinc-300 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded">
@@ -1281,17 +1320,44 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
 
                     {/* Card footer buttons */}
-                    <div className="p-4 bg-black/30 border-t border-white/5 flex items-center justify-between text-xs">
-                      <button
-                        onClick={() => onPreviewGallery(gallery)}
-                        className="flex items-center gap-1.5 text-zinc-400 hover:text-white transition-colors"
-                        title="Ver como cliente"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Ver</span>
-                      </button>
-
+                    <div className="p-4 bg-black/30 border-t border-white/5 flex items-center justify-between gap-2 text-xs">
                       <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => onPreviewGallery(gallery)}
+                          className="flex items-center gap-1.5 text-zinc-400 hover:text-white transition-colors"
+                          title="Ver como cliente"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Ver</span>
+                        </button>
+
+                        {galleries.length > 1 && (
+                          <div className="flex items-center gap-1 pl-2 border-l border-white/10">
+                            <button
+                              type="button"
+                              disabled={idx === 0 || isReorderingGalleries}
+                              onClick={() => handleMoveGalleryOrder(idx, -1)}
+                              className="p-1 rounded-md text-zinc-400 hover:text-amber-300 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                              title="Mover colección antes (subir orden)"
+                              aria-label="Subir orden"
+                            >
+                              <ArrowUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === galleries.length - 1 || isReorderingGalleries}
+                              onClick={() => handleMoveGalleryOrder(idx, 1)}
+                              className="p-1 rounded-md text-zinc-400 hover:text-amber-300 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                              title="Mover colección después (bajar orden)"
+                              aria-label="Bajar orden"
+                            >
+                              <ArrowDown className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => handleCopyClientInvitation(gallery)}
                           className="p-1.5 text-zinc-400 hover:text-amber-400 hover:bg-white/5 rounded-lg transition-colors"
@@ -2788,6 +2854,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#181a1f] text-zinc-400 font-mono uppercase tracking-wider text-[11px] border-b border-white/5">
                     <tr>
+                      <th className="py-3 px-4">Miniatura</th>
                       <th className="py-3 px-4">Fecha & Hora</th>
                       <th className="py-3 px-4">Cliente</th>
                       <th className="py-3 px-4">Correo Electrónico</th>
@@ -2813,76 +2880,162 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           (log.photoTitle && log.photoTitle.toLowerCase().includes(q))
                         );
                       })
-                      .map((log) => (
-                        <tr key={log.id} className="hover:bg-white/[0.02] transition-colors">
-                          <td className="py-3.5 px-4 font-mono text-zinc-400 whitespace-nowrap text-[11px]">
-                            {new Date(log.timestamp).toLocaleDateString('es-MX', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </td>
+                      .map((log) => {
+                        const matchedGallery = galleries.find(
+                          (g) => g.id === log.galleryId || g.title === log.galleryTitle
+                        );
+                        const matchedPhoto = matchedGallery?.photos.find(
+                          (p) =>
+                            (log.photoId && p.id === log.photoId) ||
+                            (log.photoTitle && p.title === log.photoTitle)
+                        );
+                        const thumbUrl =
+                          log.photoThumbnailUrl ||
+                          log.photoUrl ||
+                          matchedPhoto?.thumbnailUrl ||
+                          matchedPhoto?.url ||
+                          matchedGallery?.coverPhotoUrl;
+                        const targetPhotoId =
+                          log.type === 'single' ? matchedPhoto?.id || log.photoId : undefined;
 
-                          <td className="py-3.5 px-4 font-medium text-white whitespace-nowrap">
-                            <span className="flex items-center gap-2">
-                              <span className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-400 font-bold flex items-center justify-center text-[10px]">
-                                {log.userName.charAt(0).toUpperCase()}
+                        return (
+                          <tr key={log.id} className="hover:bg-white/[0.02] transition-colors">
+                            <td className="py-2.5 px-4">
+                              {thumbUrl ? (
+                                <button
+                                  type="button"
+                                  disabled={!matchedGallery}
+                                  onClick={() =>
+                                    matchedGallery && onPreviewGallery(matchedGallery, targetPhotoId)
+                                  }
+                                  title={
+                                    matchedGallery
+                                      ? log.type === 'single'
+                                        ? `Ver "${log.photoTitle || 'foto'}" dentro de ${matchedGallery.title}`
+                                        : `Abrir galería ${matchedGallery.title}`
+                                      : 'Galería no disponible'
+                                  }
+                                  className={`group relative w-12 h-12 rounded-xl overflow-hidden bg-black/60 border border-white/10 shrink-0 block ${
+                                    matchedGallery
+                                      ? 'cursor-pointer hover:border-amber-400/70'
+                                      : 'cursor-default opacity-75'
+                                  }`}
+                                >
+                                  <img
+                                    src={thumbUrl}
+                                    alt={log.photoTitle || log.galleryTitle}
+                                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                  />
+                                  {matchedGallery && (
+                                    <span className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-amber-300">
+                                      <Eye className="w-4 h-4" />
+                                    </span>
+                                  )}
+                                </button>
+                              ) : (
+                                <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-zinc-500">
+                                  {log.type === 'zip' ? (
+                                    <FileArchive className="w-5 h-5 text-amber-400/70" />
+                                  ) : (
+                                    <ImageIcon className="w-5 h-5 text-cyan-400/70" />
+                                  )}
+                                </div>
+                              )}
+                            </td>
+
+                            <td className="py-3.5 px-4 font-mono text-zinc-400 whitespace-nowrap text-[11px]">
+                              {new Date(log.timestamp).toLocaleDateString('es-MX', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </td>
+
+                            <td className="py-3.5 px-4 font-medium text-white whitespace-nowrap">
+                              <span className="flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-400 font-bold flex items-center justify-center text-[10px]">
+                                  {log.userName.charAt(0).toUpperCase()}
+                                </span>
+                                {log.userName}
                               </span>
-                              {log.userName}
-                            </span>
-                          </td>
+                            </td>
 
-                          <td className="py-3.5 px-4 font-mono text-zinc-300 whitespace-nowrap">
-                            <a
-                              href={`mailto:${log.userEmail}?subject=Entrega de Fotografías Lente Abierto MX - ${encodeURIComponent(log.galleryTitle)}`}
-                              className="hover:text-amber-400 flex items-center gap-1.5 transition-colors"
-                              title="Enviar correo"
-                            >
-                              <Mail className="w-3.5 h-3.5 text-zinc-500 hover:text-amber-400" />
-                              <span>{log.userEmail}</span>
-                            </a>
-                          </td>
-
-                          <td className="py-3.5 px-4 font-mono text-zinc-400 whitespace-nowrap">
-                            {log.userPhone ? (
+                            <td className="py-3.5 px-4 font-mono text-zinc-300 whitespace-nowrap">
                               <a
-                                href={`https://wa.me/${log.userPhone.replace(/[^0-9]/g, '')}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-emerald-400/90 hover:text-emerald-300 flex items-center gap-1.5 transition-colors"
-                                title="Abrir chat en WhatsApp"
+                                href={`mailto:${log.userEmail}?subject=Entrega de Fotografías Lente Abierto MX - ${encodeURIComponent(log.galleryTitle)}`}
+                                className="hover:text-amber-400 flex items-center gap-1.5 transition-colors"
+                                title="Enviar correo"
                               >
-                                <Phone className="w-3.5 h-3.5 text-emerald-400" />
-                                <span>{log.userPhone}</span>
+                                <Mail className="w-3.5 h-3.5 text-zinc-500 hover:text-amber-400" />
+                                <span>{log.userEmail}</span>
                               </a>
-                            ) : (
-                              <span className="text-zinc-600 italic">No registrado</span>
-                            )}
-                          </td>
+                            </td>
 
-                          <td className="py-3.5 px-4 text-zinc-300 font-medium">
-                            {log.galleryTitle}
-                          </td>
+                            <td className="py-3.5 px-4 font-mono text-zinc-400 whitespace-nowrap">
+                              {log.userPhone ? (
+                                <a
+                                  href={`https://wa.me/${log.userPhone.replace(/[^0-9]/g, '')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-emerald-400/90 hover:text-emerald-300 flex items-center gap-1.5 transition-colors"
+                                  title="Abrir chat en WhatsApp"
+                                >
+                                  <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span>{log.userPhone}</span>
+                                </a>
+                              ) : (
+                                <span className="text-zinc-600 italic">No registrado</span>
+                              )}
+                            </td>
 
-                          <td className="py-3.5 px-4 whitespace-nowrap">
-                            {log.type === 'zip' ? (
-                              <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono text-[10px] uppercase tracking-wider">
-                                Colección ZIP
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-mono text-[10px] uppercase tracking-wider">
-                                Foto JPG
-                              </span>
-                            )}
-                          </td>
+                            <td className="py-3.5 px-4 text-zinc-300 font-medium">
+                              {matchedGallery ? (
+                                <button
+                                  type="button"
+                                  onClick={() => onPreviewGallery(matchedGallery)}
+                                  className="hover:text-amber-400 text-left transition-colors"
+                                  title="Abrir galería"
+                                >
+                                  {log.galleryTitle}
+                                </button>
+                              ) : (
+                                log.galleryTitle
+                              )}
+                            </td>
 
-                          <td className="py-3.5 px-4 text-zinc-400 text-[11px] truncate max-w-[200px]">
-                            {log.photoTitle || 'Colección Completa'}
-                          </td>
-                        </tr>
-                      ))}
+                            <td className="py-3.5 px-4 whitespace-nowrap">
+                              {log.type === 'zip' ? (
+                                <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono text-[10px] uppercase tracking-wider">
+                                  Colección ZIP
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-mono text-[10px] uppercase tracking-wider">
+                                  Foto JPG
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="py-3.5 px-4 text-zinc-400 text-[11px] max-w-[220px]">
+                              {matchedGallery ? (
+                                <button
+                                  type="button"
+                                  onClick={() => onPreviewGallery(matchedGallery, targetPhotoId)}
+                                  className="text-left text-zinc-300 hover:text-amber-400 transition-colors truncate block max-w-[200px] underline-offset-2 hover:underline"
+                                  title="Ver fotografía en la galería"
+                                >
+                                  {log.photoTitle || 'Colección Completa'}
+                                </button>
+                              ) : (
+                                <span className="truncate block max-w-[200px]">
+                                  {log.photoTitle || 'Colección Completa'}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>
@@ -3104,34 +3257,59 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                       {/* Photo Grid Preview */}
                       <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
-                        {clientFavs.map((fav) => (
-                          <div
-                            key={fav.id}
-                            className="group relative aspect-square rounded-xl overflow-hidden bg-black/60 border border-white/5 hover:border-rose-500/50 shadow-md transition-all"
-                          >
-                            <img
-                              src={fav.photoThumbnailUrl || fav.photoUrl}
-                              alt={fav.photoTitle}
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-2 flex flex-col justify-between">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  removeFavoriteLog(fav.photoId, fav.userEmail);
-                                  setFavoriteLogs(getStoredFavoriteLogs());
-                                }}
-                                className="self-end p-1 rounded-full bg-red-950/80 hover:bg-red-900 text-red-300 transition-colors"
-                                title="Quitar de la lista"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                              <p className="text-[10px] text-white font-editorial truncate">
-                                {fav.photoTitle}
-                              </p>
+                        {clientFavs.map((fav) => {
+                          const matchedGallery = galleries.find(
+                            (g) => g.id === fav.galleryId || g.title === fav.galleryTitle
+                          );
+                          return (
+                            <div
+                              key={fav.id}
+                              onClick={() =>
+                                matchedGallery && onPreviewGallery(matchedGallery, fav.photoId)
+                              }
+                              title={
+                                matchedGallery
+                                  ? `Ver "${fav.photoTitle}" en ${matchedGallery.title}`
+                                  : fav.photoTitle
+                              }
+                              className={`group relative aspect-square rounded-xl overflow-hidden bg-black/60 border border-white/5 hover:border-rose-500/50 shadow-md transition-all ${
+                                matchedGallery ? 'cursor-pointer' : ''
+                              }`}
+                            >
+                              <img
+                                src={fav.photoThumbnailUrl || fav.photoUrl}
+                                alt={fav.photoTitle}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-2 flex flex-col justify-between">
+                                <div className="flex items-center justify-between">
+                                  {matchedGallery ? (
+                                    <span className="p-1 rounded-full bg-black/70 text-amber-300">
+                                      <Eye className="w-3 h-3" />
+                                    </span>
+                                  ) : (
+                                    <span />
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      removeFavoriteLog(fav.photoId, fav.userEmail);
+                                      setFavoriteLogs(getStoredFavoriteLogs());
+                                    }}
+                                    className="p-1 rounded-full bg-red-950/80 hover:bg-red-900 text-red-300 transition-colors"
+                                    title="Quitar de la lista"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                                <p className="text-[10px] text-white font-editorial truncate">
+                                  {fav.photoTitle}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -3404,7 +3582,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               pageTitle: '',
                               pageDescription: '',
                               brandName: 'Lente Abierto MX',
-                              brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                              brandTagline: 'Fotografía de Autor · México',
                               faviconUrl: '',
                               logoIconUrl: '',
                             }),
@@ -3435,7 +3613,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               pageTitle: '',
                               pageDescription: '',
                               brandName: 'Lente Abierto MX',
-                              brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                              brandTagline: 'Fotografía de Autor · México',
                               faviconUrl: '',
                               logoIconUrl: '',
                             }),
@@ -3475,7 +3653,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               pageTitle: '',
                               pageDescription: '',
                               brandName: 'Lente Abierto MX',
-                              brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                              brandTagline: 'Fotografía de Autor · México',
                               faviconUrl: '',
                               logoIconUrl: '',
                             }),
@@ -3503,7 +3681,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               pageTitle: '',
                               pageDescription: '',
                               brandName: 'Lente Abierto MX',
-                              brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                              brandTagline: 'Fotografía de Autor · México',
                               faviconUrl: '',
                               logoIconUrl: '',
                             }),
@@ -3511,7 +3689,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           },
                         })
                       }
-                      placeholder="FOTOGRAFÍA DE AUTOR · PIXIESET EDITION"
+                      placeholder="FOTOGRAFÍA DE AUTOR · MÉXICO"
                       className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-200 focus:outline-none focus:border-amber-500 uppercase tracking-widest font-mono text-[11px]"
                     />
                   </div>
@@ -3565,7 +3743,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                         pageTitle: '',
                                         pageDescription: '',
                                         brandName: 'Lente Abierto MX',
-                                        brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                                        brandTagline: 'Fotografía de Autor · México',
                                         faviconUrl: '',
                                         logoIconUrl: '',
                                       }),
@@ -3592,7 +3770,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                   pageTitle: '',
                                   pageDescription: '',
                                   brandName: 'Lente Abierto MX',
-                                  brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                                  brandTagline: 'Fotografía de Autor · México',
                                   faviconUrl: '',
                                   logoIconUrl: '',
                                 }),
@@ -3623,7 +3801,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               pageTitle: '',
                               pageDescription: '',
                               brandName: 'Lente Abierto MX',
-                              brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                              brandTagline: 'Fotografía de Autor · México',
                               faviconUrl: '',
                               logoIconUrl: '',
                             }),
@@ -3682,7 +3860,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                         pageTitle: '',
                                         pageDescription: '',
                                         brandName: 'Lente Abierto MX',
-                                        brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                                        brandTagline: 'Fotografía de Autor · México',
                                         faviconUrl: '',
                                         logoIconUrl: '',
                                       }),
@@ -3709,7 +3887,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                   pageTitle: '',
                                   pageDescription: '',
                                   brandName: 'Lente Abierto MX',
-                                  brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                                  brandTagline: 'Fotografía de Autor · México',
                                   faviconUrl: '',
                                   logoIconUrl: '',
                                 }),
@@ -3740,7 +3918,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               pageTitle: '',
                               pageDescription: '',
                               brandName: 'Lente Abierto MX',
-                              brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                              brandTagline: 'Fotografía de Autor · México',
                               faviconUrl: '',
                               logoIconUrl: '',
                             }),
@@ -3765,7 +3943,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     rows={3}
                     value={
                       cmsContent.general?.footerDescription ??
-                      'Plataforma de portafolio y entrega de galerías fotográficas de alta fidelidad estilo Pixieset. Capturando la luz, arquitectura y autenticidad del México contemporáneo con respeto visual y técnica editorial.'
+                      'Plataforma de portafolio y entrega privada de galerías fotográficas de alta fidelidad. Capturando la luz, arquitectura y autenticidad del México contemporáneo con respeto visual y técnica editorial.'
                     }
                     onChange={(e) =>
                       setCmsContent({
@@ -3775,7 +3953,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             pageTitle: '',
                             pageDescription: '',
                             brandName: 'Lente Abierto MX',
-                            brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                            brandTagline: 'Fotografía de Autor · México',
                             faviconUrl: '',
                             logoIconUrl: '',
                           }),
@@ -3806,7 +3984,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             pageTitle: '',
                             pageDescription: '',
                             brandName: 'Lente Abierto MX',
-                            brandTagline: 'Fotografía de Autor · Pixieset Edition',
+                            brandTagline: 'Fotografía de Autor · México',
                             faviconUrl: '',
                             logoIconUrl: '',
                           }),
@@ -4864,7 +5042,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               <div>
                 <label className="block text-xs uppercase font-mono tracking-wider text-zinc-400 mb-1.5">
-                  Aviso al Pie de Precios (Garantía Pixieset & Descargas)
+                  Aviso al Pie de Precios (Garantía de Entrega & Descargas)
                 </label>
                 <textarea
                   rows={2}
@@ -5006,8 +5184,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           if (realPhotos.length >= 6) break;
                         }
                         if (realPhotos.length > 0) {
-                          setInstagramPostsList(realPhotos);
-                          saveInstagramPosts(realPhotos);
+                          updateInstagramPostsState(realPhotos);
                           setIgFeedback('¡Se cargaron 6 fotografías reales de tus colecciones para el feed de Instagram!');
                           setTimeout(() => setIgFeedback(null), 3500);
                         } else {
@@ -5025,7 +5202,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       type="button"
                       onClick={() => {
                         const reset = resetInstagramPosts();
-                        setInstagramPostsList(reset);
+                        updateInstagramPostsState(reset);
                         setIgFeedback('Publicaciones de Instagram restablecidas.');
                         setTimeout(() => setIgFeedback(null), 3500);
                       }}
@@ -5044,6 +5221,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       <ExternalLink className="w-3.5 h-3.5 text-zinc-400" />
                       <span>Ver en Instagram</span>
                     </a>
+                  </div>
+                </div>
+
+                {/* Honest technical guidance about Instagram URLs */}
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200/90 leading-relaxed flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <strong>¿Por qué no se descarga la foto directo desde el enlace de Instagram?</strong>{' '}
+                    Instagram bloquea la extracción automática desde enlaces <code className="text-amber-300">/p/...</code> y sus imágenes temporales caducan en pocas horas. Para que coincida siempre sin romperse: pega el <strong>enlace directo del post</strong> (al dar clic los enviará directo a esa publicación) y elige la foto desde <strong>tus galerías</strong> o súbela aquí.
                   </div>
                 </div>
 
@@ -5071,20 +5257,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               type="file"
                               accept="image/*"
                               className="hidden"
-                              onChange={(e) => {
+                              onChange={async (e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
-                                  const r = new FileReader();
-                                  r.onload = (ev) => {
-                                    const data = ev.target?.result as string;
-                                    if (data) {
-                                      const updated = [...instagramPostsList];
-                                      updated[idx] = { ...updated[idx], imageUrl: data };
-                                      setInstagramPostsList(updated);
-                                      saveInstagramPosts(updated);
-                                    }
-                                  };
-                                  r.readAsDataURL(file);
+                                  try {
+                                    const compressed = await resizeImageToDataUrl(file, 900, 900, 0.82);
+                                    const updated = [...instagramPostsList];
+                                    updated[idx] = { ...updated[idx], imageUrl: compressed };
+                                    updateInstagramPostsState(updated);
+                                  } catch {
+                                    const r = new FileReader();
+                                    r.onload = (ev) => {
+                                      const data = ev.target?.result as string;
+                                      if (data) {
+                                        const updated = [...instagramPostsList];
+                                        updated[idx] = { ...updated[idx], imageUrl: data };
+                                        updateInstagramPostsState(updated);
+                                      }
+                                    };
+                                    r.readAsDataURL(file);
+                                  }
                                 }
                               }}
                             />
@@ -5109,8 +5301,64 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       {/* Edit Fields */}
                       <div className="space-y-2 pt-2 border-t border-white/5 text-xs">
                         <div>
+                          <label className="block text-[10px] uppercase font-mono text-rose-300 mb-1 flex items-center justify-between">
+                            <span>URL del Post de Instagram</span>
+                            {post.postUrl && (
+                              <a
+                                href={post.postUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-amber-400 hover:text-amber-300 inline-flex items-center gap-1 lowercase"
+                              >
+                                <span>probar</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </label>
+                          <input
+                            type="url"
+                            value={post.postUrl || ''}
+                            onChange={(e) => {
+                              const updated = [...instagramPostsList];
+                              updated[idx] = { ...updated[idx], postUrl: e.target.value };
+                              updateInstagramPostsState(updated);
+                            }}
+                            placeholder="https://www.instagram.com/p/..."
+                            className="w-full bg-[#121316] border border-zinc-800 focus:border-rose-500/60 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                          />
+                        </div>
+
+                        {galleries.some((g) => g.photos.length > 0) && (
+                          <div>
+                            <label className="block text-[10px] uppercase font-mono text-zinc-400 mb-1">
+                              Elegir foto de tus galerías
+                            </label>
+                            <select
+                              value=""
+                              onChange={(e) => {
+                                const selectedUrl = e.target.value;
+                                if (!selectedUrl) return;
+                                const updated = [...instagramPostsList];
+                                updated[idx] = { ...updated[idx], imageUrl: selectedUrl };
+                                updateInstagramPostsState(updated);
+                              }}
+                              className="w-full bg-[#121316] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-amber-500"
+                            >
+                              <option value="">-- Seleccionar foto de una colección --</option>
+                              {galleries.map((g) =>
+                                g.photos.map((p) => (
+                                  <option key={`${g.id}-${p.id}`} value={p.url}>
+                                    {g.title} · {p.title}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                          </div>
+                        )}
+
+                        <div>
                           <label className="block text-[10px] uppercase font-mono text-zinc-400 mb-1">
-                            URL de Imagen
+                            URL de Imagen (o sube arriba)
                           </label>
                           <input
                             type="url"
@@ -5118,8 +5366,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             onChange={(e) => {
                               const updated = [...instagramPostsList];
                               updated[idx] = { ...updated[idx], imageUrl: e.target.value };
-                              setInstagramPostsList(updated);
-                              saveInstagramPosts(updated);
+                              updateInstagramPostsState(updated);
                             }}
                             className="w-full bg-[#121316] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white"
                           />
@@ -5135,8 +5382,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             onChange={(e) => {
                               const updated = [...instagramPostsList];
                               updated[idx] = { ...updated[idx], caption: e.target.value };
-                              setInstagramPostsList(updated);
-                              saveInstagramPosts(updated);
+                              updateInstagramPostsState(updated);
                             }}
                             className="w-full bg-[#121316] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white resize-none"
                           />
@@ -5153,8 +5399,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               onChange={(e) => {
                                 const updated = [...instagramPostsList];
                                 updated[idx] = { ...updated[idx], likes: parseInt(e.target.value) || 0 };
-                                setInstagramPostsList(updated);
-                                saveInstagramPosts(updated);
+                                updateInstagramPostsState(updated);
                               }}
                               className="w-full bg-[#121316] border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white font-mono"
                             />
@@ -5170,8 +5415,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               onChange={(e) => {
                                 const updated = [...instagramPostsList];
                                 updated[idx] = { ...updated[idx], date: e.target.value };
-                                setInstagramPostsList(updated);
-                                saveInstagramPosts(updated);
+                                updateInstagramPostsState(updated);
                               }}
                               placeholder="Hace 2 días"
                               className="w-full bg-[#121316] border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white"
@@ -5201,10 +5445,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 setIsSavingCms(true);
                 setCmsSaveError(null);
                 try {
-                  const [optFavicon, optLogo, optPortrait] = await Promise.all([
+                  const [optFavicon, optLogo, optPortrait, optIgPosts] = await Promise.all([
                     compressDataUrlIfOversized(cmsContent.general?.faviconUrl, 128, 128, 0.9, 45000),
                     compressDataUrlIfOversized(cmsContent.general?.logoIconUrl, 400, 400, 0.88, 90000),
                     compressDataUrlIfOversized(cmsContent.biography?.portraitUrl, 960, 1280, 0.84, 150000),
+                    cmsContent.instagramPosts
+                      ? Promise.all(
+                          cmsContent.instagramPosts.map(async (p) => ({
+                            ...p,
+                            imageUrl:
+                              (await compressDataUrlIfOversized(p.imageUrl, 640, 640, 0.8, 65000)) ||
+                              p.imageUrl,
+                          }))
+                        )
+                      : Promise.resolve(undefined),
                   ]);
 
                   const optimizedCms: SiteContentConfig = {
@@ -5220,6 +5474,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       ...cmsContent.biography,
                       portraitUrl: optPortrait || cmsContent.biography.portraitUrl,
                     },
+                    ...(optIgPosts ? { instagramPosts: optIgPosts } : {}),
                   };
 
                   setCmsContent(optimizedCms);

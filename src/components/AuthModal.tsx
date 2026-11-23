@@ -26,9 +26,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [name, setName] = useState('');
   const [role, setRole] = useState<'fotografo' | 'cliente'>('cliente');
   const [phone, setPhone] = useState('');
-  const [whatsapp, setWhatsapp] = useState('');
   const [instagram, setInstagram] = useState('');
-  const [bio, setBio] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -82,9 +80,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           email: email.trim().toLowerCase(),
           role,
           phone: phone.trim(),
-          whatsapp: whatsapp || phone.trim(),
+          whatsapp: phone.trim(),
           instagram,
-          bio,
+          bio: '',
           detailedBio: `${name.trim()} - ${role === 'fotografo' ? 'Fotógrafo profesional' : 'Cliente'}. Apasionado de la estética visual de Lente Abierto MX.`,
         });
         onSuccess(newUser);

@@ -43,7 +43,7 @@ export const Footer: React.FC<FooterProps> = ({
             </div>
             <p className="text-zinc-400 font-light leading-relaxed max-w-md text-sm">
               {generalConfig?.footerDescription ||
-                'Plataforma de portafolio y entrega de galerías fotográficas de alta fidelidad estilo Pixieset. Capturando la luz, arquitectura y autenticidad del México contemporáneo con respeto visual y técnica editorial.'}
+                'Plataforma de portafolio y entrega privada de galerías fotográficas de alta fidelidad. Capturando la luz, arquitectura y autenticidad del México contemporáneo con respeto visual y técnica editorial.'}
             </p>
             <div className="flex items-center gap-4 pt-2 text-zinc-300">
               <a
@@ -156,9 +156,41 @@ export const Footer: React.FC<FooterProps> = ({
           </div>
         </div>
 
-        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-zinc-500">
-          <p>© {new Date().getFullYear()} {generalConfig?.brandName || 'Lente Abierto MX'}. Todos los derechos reservados.</p>
-          <p className="flex items-center gap-1">
+        <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-[11px] text-zinc-500">
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-3 gap-y-1.5">
+            <p>© {new Date().getFullYear()} {generalConfig?.brandName || 'Lente Abierto MX'}. Todos los derechos reservados.</p>
+            <span className="hidden sm:inline text-zinc-700" aria-hidden="true">·</span>
+            <nav aria-label="Enlaces fijos del estudio" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+              <button
+                type="button"
+                onClick={() => onSelectTab('biography')}
+                className="text-zinc-400 hover:text-amber-400 transition-colors underline-offset-2 hover:underline"
+              >
+                Biografía
+              </button>
+              <span className="text-zinc-700" aria-hidden="true">·</span>
+              <a
+                href={igUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-zinc-400 hover:text-rose-400 transition-colors inline-flex items-center gap-1 underline-offset-2 hover:underline"
+              >
+                <Instagram className="w-3 h-3" />
+                <span>Instagram</span>
+              </a>
+              <span className="text-zinc-700" aria-hidden="true">·</span>
+              <a
+                href={`https://wa.me/${whatsappNumber.length === 10 ? `52${whatsappNumber}` : whatsappNumber}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-zinc-400 hover:text-emerald-400 transition-colors inline-flex items-center gap-1 underline-offset-2 hover:underline"
+              >
+                <Phone className="w-3 h-3" />
+                <span>WhatsApp</span>
+              </a>
+            </nav>
+          </div>
+          <p className="flex items-center gap-1 shrink-0">
             <span>Hecho con dedicación para fotografía de alta fidelidad</span>
             <Heart className="w-3 h-3 text-amber-500 fill-amber-500" />
           </p>

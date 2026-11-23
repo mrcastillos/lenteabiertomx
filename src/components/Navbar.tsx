@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, Lock, User, LayoutDashboard, LogIn, LogOut, Bell } from 'lucide-react';
+import { Camera, Lock, LayoutDashboard, LogIn, LogOut } from 'lucide-react';
 import { UserProfile, SiteContentConfig } from '../types';
 
 interface NavbarProps {
@@ -64,7 +64,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               {generalConfig?.brandName || 'Lente Abierto MX'}
             </span>
             <span className="text-[8px] sm:text-[9px] font-sans tracking-[0.18em] sm:tracking-[0.25em] text-zinc-400 uppercase mt-1 block truncate max-w-[140px] sm:max-w-none">
-              {generalConfig?.brandTagline || 'Fotografía de Autor · Pixieset Edition'}
+              {generalConfig?.brandTagline || 'Fotografía de Autor · México'}
             </span>
           </div>
         </button>

@@ -131,8 +131,15 @@ export function subscribeToGalleries(
           galleries.push(docSnap.data() as Gallery);
         });
 
-        // Sort by creation date descending
-        galleries.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        // Sort by manual displayOrder ascending, then by creation date descending
+        galleries.sort((a, b) => {
+          const orderA =
+            typeof a.displayOrder === 'number' ? a.displayOrder : Number.MAX_SAFE_INTEGER;
+          const orderB =
+            typeof b.displayOrder === 'number' ? b.displayOrder : Number.MAX_SAFE_INTEGER;
+          if (orderA !== orderB) return orderA - orderB;
+          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        });
 
         // Cache locally for offline availability
         try {
@@ -296,20 +303,6 @@ export async function saveDownloadLogToCloud(log: DownloadLog): Promise<void> {
   }
 }
 
-export async function fetchDownloadLogsFromCloud(): Promise<DownloadLog[]> {
-  if (!db) return [];
-  const path = 'downloadLogs';
-  try {
-    const snap = await getDocs(collection(db, 'downloadLogs'));
-    const logs: DownloadLog[] = [];
-    snap.forEach((d) => logs.push(d.data() as DownloadLog));
-    return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  } catch (err) {
-    handleFirestoreError(err, OperationType.LIST, path);
-    return [];
-  }
-}
-
 export function subscribeToDownloadLogs(
   onUpdate: (logs: DownloadLog[]) => void
 ) {
@@ -359,20 +352,6 @@ export async function saveFavoriteLogToCloud(log: FavoriteLog): Promise<void> {
   }
 }
 
-export async function fetchFavoriteLogsFromCloud(): Promise<FavoriteLog[]> {
-  if (!db) return [];
-  const path = 'favoriteLogs';
-  try {
-    const snap = await getDocs(collection(db, 'favoriteLogs'));
-    const logs: FavoriteLog[] = [];
-    snap.forEach((d) => logs.push(d.data() as FavoriteLog));
-    return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  } catch (err) {
-    handleFirestoreError(err, OperationType.LIST, path);
-    return [];
-  }
-}
-
 export async function deleteFavoriteLogFromCloud(logId: string): Promise<void> {
   if (!db || !logId) return;
   try {
@@ -412,20 +391,6 @@ export async function saveInquiryToCloud(inquiry: BookingInquiry): Promise<void>
     await setDoc(doc(db, 'inquiries', inquiry.id), sanitizePayload(inquiry));
   } catch (err) {
     handleFirestoreError(err, OperationType.CREATE, path);
-  }
-}
-
-export async function fetchInquiriesFromCloud(): Promise<BookingInquiry[]> {
-  if (!db) return [];
-  const path = 'inquiries';
-  try {
-    const snap = await getDocs(collection(db, 'inquiries'));
-    const list: BookingInquiry[] = [];
-    snap.forEach((d) => list.push(d.data() as BookingInquiry));
-    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  } catch (err) {
-    handleFirestoreError(err, OperationType.LIST, path);
-    return [];
   }
 }
 

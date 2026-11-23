@@ -8,7 +8,6 @@ import {
   X,
   BadgeCheck,
   Calendar,
-  Sparkles,
 } from 'lucide-react';
 import { getStoredInstagramPosts } from '../services/storage';
 import { InstagramPost, Gallery } from '../types';
@@ -16,46 +15,64 @@ import { InstagramPost, Gallery } from '../types';
 interface InstagramFeedProps {
   galleries?: Gallery[];
   portraitUrl?: string;
+  customPosts?: InstagramPost[];
 }
 
 export const InstagramFeed: React.FC<InstagramFeedProps> = ({
   galleries = [],
   portraitUrl,
+  customPosts,
 }) => {
   const [posts, setPosts] = useState<InstagramPost[]>(() => {
-    const stored = getStoredInstagramPosts();
-    return stored;
+    if (customPosts && customPosts.length > 0) return customPosts;
+    return getStoredInstagramPosts();
   });
   const [activeModalPost, setActiveModalPost] = useState<InstagramPost | null>(null);
 
   useEffect(() => {
-    const stored = getStoredInstagramPosts();
-    // If photographer has custom galleries with real photos and no custom posts saved:
-    if (stored.length > 0) {
-      setPosts(stored);
-    } else if (galleries.length > 0) {
-      // Derive authentic posts from the photographer's own gallery collections
-      const derived: InstagramPost[] = [];
-      for (const g of galleries) {
-        for (const p of g.photos.slice(0, 2)) {
-          derived.push({
-            id: `ig-auto-${p.id}`,
-            imageUrl: p.url,
-            caption: `${p.title}. Captura de autor para la colección "${g.title}". Documental de bodas & retrato en luz natural. #LenteAbiertoMX @lente.abierto.mx`,
-            likes: Math.floor(Math.random() * 400) + 350,
-            comments: Math.floor(Math.random() * 30) + 18,
-            postUrl: 'https://instagram.com/lente.abierto.mx',
-            date: 'Publicación reciente',
-          });
+    const syncPosts = () => {
+      if (customPosts && customPosts.length > 0) {
+        setPosts(customPosts);
+        return;
+      }
+      const stored = getStoredInstagramPosts();
+      if (stored.length > 0) {
+        setPosts(stored);
+      } else if (galleries.length > 0) {
+        const derived: InstagramPost[] = [];
+        for (const g of galleries) {
+          for (const p of g.photos.slice(0, 2)) {
+            derived.push({
+              id: `ig-auto-${p.id}`,
+              imageUrl: p.url,
+              caption: `${p.title}. Captura de autor para la colección "${g.title}". Documental de bodas & retrato en luz natural. #LenteAbiertoMX @lente.abierto.mx`,
+              likes: Math.floor(Math.random() * 400) + 350,
+              comments: Math.floor(Math.random() * 30) + 18,
+              postUrl: 'https://instagram.com/lente.abierto.mx',
+              date: 'Publicación reciente',
+            });
+            if (derived.length >= 6) break;
+          }
           if (derived.length >= 6) break;
         }
-        if (derived.length >= 6) break;
+        if (derived.length > 0) {
+          setPosts(derived);
+        }
       }
-      if (derived.length > 0) {
-        setPosts(derived);
+    };
+
+    syncPosts();
+    const handleCustomUpdate = (e: Event) => {
+      const detail = (e as CustomEvent<InstagramPost[]>).detail;
+      if (Array.isArray(detail) && detail.length > 0) {
+        setPosts(detail);
+      } else {
+        syncPosts();
       }
-    }
-  }, [galleries]);
+    };
+    window.addEventListener('lente-abierto-ig-updated', handleCustomUpdate);
+    return () => window.removeEventListener('lente-abierto-ig-updated', handleCustomUpdate);
+  }, [galleries, customPosts]);
 
   const handleShuffle = () => {
     const shuffled = [...posts].sort(() => Math.random() - 0.5);
@@ -267,13 +284,18 @@ export const InstagramFeed: React.FC<InstagramFeedProps> = ({
 
                 <div className="flex items-center gap-3">
                   <a
-                    href="https://instagram.com/lente.abierto.mx"
+                    href={activeModalPost.postUrl || 'https://instagram.com/lente.abierto.mx'}
                     target="_blank"
                     rel="noreferrer"
                     className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-rose-500 to-purple-600 hover:opacity-90 text-white font-medium text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-lg transition-opacity"
                   >
                     <Instagram className="w-4 h-4" />
-                    <span>Abrir en Instagram</span>
+                    <span>
+                      {activeModalPost.postUrl &&
+                      activeModalPost.postUrl !== 'https://instagram.com/lente.abierto.mx'
+                        ? 'Ver Publicación en Instagram'
+                        : 'Abrir en Instagram'}
+                    </span>
                     <ExternalLink className="w-3.5 h-3.5 text-white/80" />
                   </a>
                 </div>

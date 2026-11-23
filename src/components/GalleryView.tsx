@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Download,
   Share2,
@@ -42,6 +42,12 @@ interface GalleryViewProps {
   onToggleFavorite: (photoId: string) => void;
   brandName?: string;
   brandLogoUrl?: string;
+  initialPhotoId?: string;
+  whatsappNumber?: string;
+  lightboxPhotoId?: string | null;
+  onOpenLightbox?: (photoId: string) => void;
+  onNavigateLightbox?: (photoId: string) => void;
+  onCloseLightbox?: () => void;
 }
 
 export const GalleryView: React.FC<GalleryViewProps> = ({
@@ -51,8 +57,21 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   onToggleFavorite,
   brandName = 'Lente Abierto MX',
   brandLogoUrl,
+  initialPhotoId,
+  whatsappNumber,
+  lightboxPhotoId,
+  onOpenLightbox,
+  onNavigateLightbox,
+  onCloseLightbox,
 }) => {
-  const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
+  const [internalSelectedPhotoId, setInternalSelectedPhotoId] = useState<string | null>(initialPhotoId || null);
+  const selectedPhotoId = lightboxPhotoId !== undefined ? lightboxPhotoId : internalSelectedPhotoId;
+
+  useEffect(() => {
+    if (lightboxPhotoId === undefined) {
+      setInternalSelectedPhotoId(initialPhotoId || null);
+    }
+  }, [gallery.id, initialPhotoId, lightboxPhotoId]);
   const [sortOrder, setSortOrder] = useState<PhotoSortOrder>('default');
   const [randomSeed, setRandomSeed] = useState<number>(() => Date.now());
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
@@ -221,6 +240,8 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
         galleryTitle: gallery.title,
         photoId: photo.id,
         photoTitle: photo.title || 'Foto Individual',
+        photoUrl: photo.url,
+        photoThumbnailUrl: photo.thumbnailUrl || photo.url,
         type: 'single',
         userName: client.name,
         userEmail: client.email,
@@ -367,7 +388,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
         </div>
       </nav>
 
-      {/* Pixieset-Style Clean Hero Cover Banner (Zero text overlaid on the image) */}
+      {/* Editorial Clean Hero Cover Banner (Zero text overlaid on the image) */}
       <section className="w-full overflow-hidden border-b border-white/5 bg-black/20">
         <div className="relative w-full h-[38vh] sm:h-[48vh] lg:h-[60vh] min-h-[240px] max-h-[600px]">
           <img
@@ -379,7 +400,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
         </div>
       </section>
 
-      {/* Pixieset-Style Editorial Header Band BELOW Cover Image */}
+      {/* Editorial Header Band BELOW Cover Image */}
       <header className="bg-[#121316] border-b border-white/5 px-4 sm:px-8 py-8 sm:py-12">
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Date & Category Kicker */}
@@ -538,7 +559,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
           </div>
         )}
 
-        {/* Clean Pixieset-style Action Bar above the photos */}
+        {/* Clean Editorial Action Bar above the photos */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 mb-6 border-b border-white/5">
           <div className="min-w-0">
             <h2 className="font-editorial text-lg sm:text-xl text-white font-normal truncate">
@@ -646,7 +667,13 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
               return (
                 <div
                   key={photo.id}
-                  onClick={() => setSelectedPhotoId(photo.id)}
+                  onClick={() => {
+                    if (onOpenLightbox) {
+                      onOpenLightbox(photo.id);
+                    } else {
+                      setInternalSelectedPhotoId(photo.id);
+                    }
+                  }}
                   className="group relative cursor-pointer break-inside-avoid overflow-hidden rounded-xl bg-[#141518] border border-white/5 hover:border-amber-500/30 transition-all duration-300 shadow-lg"
                 >
                   <div className="relative overflow-hidden">
@@ -755,10 +782,22 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
           photos={displayedPhotos}
           currentIndex={selectedPhotoIndex}
           isOpen={selectedPhotoIndex !== null}
-          onClose={() => setSelectedPhotoId(null)}
+          onClose={() => {
+            if (onCloseLightbox) {
+              onCloseLightbox();
+            } else {
+              setInternalSelectedPhotoId(null);
+            }
+          }}
           onNavigate={(newIdx) => {
             const target = displayedPhotos[newIdx];
-            if (target) setSelectedPhotoId(target.id);
+            if (target) {
+              if (onNavigateLightbox) {
+                onNavigateLightbox(target.id);
+              } else {
+                setInternalSelectedPhotoId(target.id);
+              }
+            }
           }}
           isFavorite={favorites.includes(displayedPhotos[selectedPhotoIndex]?.id || '')}
           onToggleFavorite={onToggleFavorite}
@@ -785,10 +824,13 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
         galleryTitle={gallery.title}
         photoId={downloadTargetPhoto?.id}
         photoTitle={downloadTargetPhoto?.title}
+        photoUrl={downloadTargetPhoto?.url}
+        photoThumbnailUrl={downloadTargetPhoto?.thumbnailUrl || downloadTargetPhoto?.url}
         actionType={pinActionType}
         onSuccess={handlePinSuccess}
         logoUrl={brandLogoUrl}
         brandName={brandName}
+        whatsappNumber={whatsappNumber}
       />
 
       {/* Client Favorites Tracking Modal */}

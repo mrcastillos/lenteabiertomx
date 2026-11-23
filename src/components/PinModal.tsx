@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Lock,
   X,
-  ShieldCheck,
   KeyRound,
   Mail,
   User,
@@ -11,6 +10,7 @@ import {
   AlertCircle,
   FileArchive,
   Camera,
+  MessageCircle,
 } from 'lucide-react';
 import {
   recordDownloadLog,
@@ -27,10 +27,13 @@ interface PinModalProps {
   galleryTitle: string;
   photoId?: string;
   photoTitle?: string;
+  photoUrl?: string;
+  photoThumbnailUrl?: string;
   actionType: 'single' | 'full';
   onSuccess: () => void;
   logoUrl?: string;
   brandName?: string;
+  whatsappNumber?: string;
 }
 
 export const PinModal: React.FC<PinModalProps> = ({
@@ -41,10 +44,13 @@ export const PinModal: React.FC<PinModalProps> = ({
   galleryTitle,
   photoId,
   photoTitle,
+  photoUrl,
+  photoThumbnailUrl,
   actionType,
   onSuccess,
   logoUrl,
   brandName,
+  whatsappNumber = '527773743420',
 }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -129,6 +135,8 @@ export const PinModal: React.FC<PinModalProps> = ({
       galleryTitle,
       photoId,
       photoTitle: photoTitle || (actionType === 'full' ? 'Colección Completa ZIP' : 'Foto Individual'),
+      photoUrl: actionType === 'single' ? photoUrl : undefined,
+      photoThumbnailUrl: actionType === 'single' ? photoThumbnailUrl || photoUrl : undefined,
       type: actionType === 'full' ? 'zip' : 'single',
       userName: name.trim(),
       userEmail: email.trim().toLowerCase(),
@@ -152,6 +160,13 @@ export const PinModal: React.FC<PinModalProps> = ({
   };
 
   const hasPinRequired = expectedPin && expectedPin.trim().length > 0;
+  const rawWaDigits = (whatsappNumber || '527773743420').replace(/[^0-9]/g, '') || '527773743420';
+  const cleanWaNumber = rawWaDigits.length === 10 ? `52${rawWaDigits}` : rawWaDigits;
+  const pinRequestText =
+    actionType === 'single' && photoTitle
+      ? `Hola, requiero PIN para descargar la foto "${photoTitle}" de la galería: ${galleryTitle}`
+      : `Hola, requiero PIN para descargar la galería: ${galleryTitle}`;
+  const whatsappPinUrl = `https://wa.me/${cleanWaNumber}?text=${encodeURIComponent(pinRequestText)}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
@@ -335,6 +350,19 @@ export const PinModal: React.FC<PinModalProps> = ({
                         : 'border-amber-500/40 focus:border-amber-400 focus:ring-2 focus:ring-amber-500/30'
                     }`}
                   />
+                  <div className="mt-2.5 pt-2 border-t border-white/5 flex items-center justify-center">
+                    <a
+                      href={whatsappPinUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-amber-400 hover:text-amber-300 font-medium inline-flex items-center gap-1.5 transition-colors"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span className="underline underline-offset-2">
+                        Si no tienes PIN, solicítalo aquí
+                      </span>
+                    </a>
+                  </div>
                 </div>
               </div>
             )}
