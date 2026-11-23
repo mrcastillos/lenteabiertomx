@@ -57,10 +57,17 @@ export const FavoriteAuthModal: React.FC<FavoriteAuthModalProps> = ({
       return;
     }
 
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (!phone.trim() || phoneDigits.length < 10) {
+      setErrorField('phone');
+      setErrorMessage('Por favor introduce un número de teléfono o WhatsApp válido (mínimo 10 dígitos).');
+      return;
+    }
+
     const info = {
       name: name.trim(),
       email: email.trim().toLowerCase(),
-      phone: phone.trim() || undefined,
+      phone: phone.trim(),
     };
 
     setClientSessionInfo(info);
@@ -145,9 +152,9 @@ export const FavoriteAuthModal: React.FC<FavoriteAuthModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs uppercase tracking-wider text-zinc-400 font-medium mb-1.5 flex items-center justify-between">
-              <span>Teléfono / WhatsApp</span>
-              <span className="text-[10px] text-zinc-500">Opcional</span>
+            <label className="block text-xs uppercase tracking-wider text-zinc-300 font-medium mb-1.5 flex items-center justify-between">
+              <span>Teléfono / WhatsApp *</span>
+              <span className="text-[10px] text-zinc-500">Obligatorio</span>
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
@@ -155,10 +162,18 @@ export const FavoriteAuthModal: React.FC<FavoriteAuthModalProps> = ({
               </div>
               <input
                 type="tel"
+                required
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => {
+                  setPhone(e.target.value);
+                  if (errorField === 'phone') setErrorField(null);
+                }}
                 placeholder="+52 777 000 0000"
-                className="w-full bg-[#181a1f] border border-zinc-700 text-sm text-white py-2.5 pl-10 pr-4 rounded-xl focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all"
+                className={`w-full bg-[#181a1f] border text-sm text-white py-2.5 pl-10 pr-4 rounded-xl focus:outline-none transition-all ${
+                  errorField === 'phone'
+                    ? 'border-red-500/80 bg-red-950/20'
+                    : 'border-zinc-700 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
+                }`}
               />
             </div>
           </div>

@@ -62,20 +62,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         onSuccess(user);
         onClose();
       } else {
-        if (!name || !email) {
-          setError('Por favor completa tu nombre y correo.');
+        if (!name.trim() || !email.trim()) {
+          setError('Por favor completa tu nombre y correo electrónico.');
+          setIsLoading(false);
+          return;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) {
+          setError('Por favor introduce un correo electrónico válido.');
+          setIsLoading(false);
+          return;
+        }
+        if (!phone.trim() || phone.replace(/\D/g, '').length < 10) {
+          setError('Por favor introduce un número de teléfono o WhatsApp válido (mínimo 10 dígitos).');
           setIsLoading(false);
           return;
         }
         const newUser = registerUser({
-          name,
-          email,
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
           role,
-          phone,
-          whatsapp: whatsapp || phone,
+          phone: phone.trim(),
+          whatsapp: whatsapp || phone.trim(),
           instagram,
           bio,
-          detailedBio: `${name} - ${role === 'fotografo' ? 'Fotógrafo profesional' : 'Cliente'}. Apasionado de la estética visual de Lente Abierto MX.`,
+          detailedBio: `${name.trim()} - ${role === 'fotografo' ? 'Fotógrafo profesional' : 'Cliente'}. Apasionado de la estética visual de Lente Abierto MX.`,
         });
         onSuccess(newUser);
         onClose();
@@ -228,13 +238,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[10px] uppercase tracking-wider text-zinc-400 mb-1">
-                  Teléfono
+                  Teléfono / WhatsApp *
                 </label>
                 <input
                   type="tel"
+                  required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+52 55..."
+                  placeholder="+52 777 000 0000"
                   className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/60"
                 />
               </div>

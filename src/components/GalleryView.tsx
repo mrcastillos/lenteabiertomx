@@ -180,7 +180,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
     const client = getClientSessionInfo();
     const needsPin = gallery.downloadPin && !isPinVerified;
 
-    if (!client || needsPin) {
+    if (!client || !client.email?.trim() || !client.phone?.trim() || needsPin) {
       setPinActionType('full');
       setDownloadTargetPhoto(null);
       setPendingAction(() => handleStartZipDownload);
@@ -210,7 +210,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
       await downloadSingleCleanPhoto(photo, gallery.title, token);
     };
 
-    if (!client || needsPin) {
+    if (!client || !client.email?.trim() || !client.phone?.trim() || needsPin) {
       setPinActionType('single');
       setDownloadTargetPhoto(photo);
       setPendingAction(() => action);
@@ -232,6 +232,9 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
 
   const handleRequestPinFromLightbox = (type: 'single', onSuccess: () => void) => {
     setPinActionType(type);
+    setDownloadTargetPhoto(
+      selectedPhotoIndex !== null ? displayedPhotos[selectedPhotoIndex] || null : null
+    );
     setPendingAction(() => onSuccess);
     setIsPinModalOpen(true);
   };
@@ -250,7 +253,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
     const isCurrentlyFav = favorites.includes(photo.id);
     const client = getClientSessionInfo();
 
-    if (!isCurrentlyFav && !client) {
+    if (!isCurrentlyFav && (!client || !client.email?.trim() || !client.phone?.trim())) {
       setPendingFavPhoto(photo);
       setIsFavModalOpen(true);
       return;

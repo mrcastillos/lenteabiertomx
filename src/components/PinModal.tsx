@@ -63,8 +63,9 @@ export const PinModal: React.FC<PinModalProps> = ({
         setName(savedInfo.name || '');
         setEmail(savedInfo.email || '');
         setPhone(savedInfo.phone || '');
-        setHasExistingSession(true);
-        setIsEditingSession(false);
+        const hasCompleteSession = Boolean(savedInfo.phone && savedInfo.phone.replace(/\D/g, '').length >= 10);
+        setHasExistingSession(hasCompleteSession);
+        setIsEditingSession(!hasCompleteSession);
       } else {
         setHasExistingSession(false);
         setIsEditingSession(true);
@@ -99,6 +100,14 @@ export const PinModal: React.FC<PinModalProps> = ({
       return;
     }
 
+    // 2b. Validate Phone (mandatory)
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (!phone.trim() || phoneDigits.length < 10) {
+      setErrorField('phone');
+      setErrorMessage('Por favor introduce un número de teléfono o WhatsApp válido (mínimo 10 dígitos).');
+      return;
+    }
+
     // 3. Validate PIN if gallery requires it
     const hasPinRequired = expectedPin && expectedPin.trim().length > 0;
     if (hasPinRequired) {
@@ -123,14 +132,14 @@ export const PinModal: React.FC<PinModalProps> = ({
       type: actionType === 'full' ? 'zip' : 'single',
       userName: name.trim(),
       userEmail: email.trim().toLowerCase(),
-      userPhone: phone.trim() || undefined,
+      userPhone: phone.trim(),
     });
 
     // 5. Remember client session
     setClientSessionInfo({
       name: name.trim(),
       email: email.trim().toLowerCase(),
-      phone: phone.trim() || undefined,
+      phone: phone.trim(),
     });
 
     if (galleryId) {
@@ -197,7 +206,9 @@ export const PinModal: React.FC<PinModalProps> = ({
                         Sesión Activa
                       </span>
                     </div>
-                    <span className="text-[11px] text-zinc-400 font-mono block">{email}</span>
+                    <span className="text-[11px] text-zinc-400 font-mono block">
+                      {email} · {phone}
+                    </span>
                   </div>
                 </div>
                 <button
@@ -267,9 +278,9 @@ export const PinModal: React.FC<PinModalProps> = ({
 
                 {/* Teléfono */}
                 <div>
-                  <label className="block text-xs uppercase tracking-wider text-zinc-400 font-medium mb-1.5 flex items-center justify-between">
-                    <span>Teléfono / WhatsApp</span>
-                    <span className="text-[10px] text-zinc-500">Opcional</span>
+                  <label className="block text-xs uppercase tracking-wider text-zinc-300 font-medium mb-1.5 flex items-center justify-between">
+                    <span>Teléfono / WhatsApp *</span>
+                    <span className="text-[10px] text-zinc-500">Obligatorio</span>
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
@@ -277,10 +288,18 @@ export const PinModal: React.FC<PinModalProps> = ({
                     </div>
                     <input
                       type="tel"
+                      required
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      onChange={(e) => {
+                        setPhone(e.target.value);
+                        if (errorField === 'phone') setErrorField(null);
+                      }}
                       placeholder="+52 777 000 0000"
-                      className="w-full bg-[#181a1f] border border-zinc-700 text-sm text-white py-2.5 pl-10 pr-4 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all"
+                      className={`w-full bg-[#181a1f] border text-sm text-white py-2.5 pl-10 pr-4 rounded-xl focus:outline-none transition-all ${
+                        errorField === 'phone'
+                          ? 'border-red-500/80 focus:ring-2 focus:ring-red-500/30 bg-red-950/20'
+                          : 'border-zinc-700 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20'
+                      }`}
                     />
                   </div>
                 </div>

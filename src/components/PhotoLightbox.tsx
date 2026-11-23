@@ -75,7 +75,7 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
 
   const handleToggleFavClick = () => {
     const client = getClientSessionInfo();
-    if (!isFavorite && !client) {
+    if (!isFavorite && (!client || !client.email?.trim() || !client.phone?.trim())) {
       if (onRequestFavorite) {
         onRequestFavorite(currentPhoto);
         return;
@@ -175,7 +175,7 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({
     if (isExpired) return;
     const client = getClientSessionInfo();
     const pinVerified = isPinVerified || isGalleryPinVerifiedInSession(gallery.id);
-    if (!client || (gallery.downloadPin && !pinVerified)) {
+    if (!client || !client.email?.trim() || !client.phone?.trim() || (gallery.downloadPin && !pinVerified)) {
       onRequestPin('single', executeDownload);
     } else {
       recordDownloadLog({
