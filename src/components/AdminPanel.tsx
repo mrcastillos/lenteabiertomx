@@ -2867,16 +2867,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <div className="bg-[#121316] rounded-2xl border border-white/5 overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-[#181a1f] text-zinc-400 font-mono uppercase tracking-wider text-[11px] border-b border-white/5">
+                  <thead className="bg-[#181a1f] text-zinc-400 font-mono uppercase tracking-wider text-[10px] border-b border-white/5">
                     <tr>
-                      <th className="py-3 px-4">Miniatura</th>
-                      <th className="py-3 px-4">Fecha & Hora</th>
-                      <th className="py-3 px-4">Cliente</th>
-                      <th className="py-3 px-4">Correo Electrónico</th>
-                      <th className="py-3 px-4">Teléfono / WhatsApp</th>
-                      <th className="py-3 px-4">Galería</th>
-                      <th className="py-3 px-4">Tipo</th>
-                      <th className="py-3 px-4">Detalle</th>
+                      <th className="py-3 px-2.5 sm:px-3">Foto</th>
+                      <th className="py-3 px-2.5 sm:px-3">Fecha</th>
+                      <th className="py-3 px-2.5 sm:px-3">Cliente</th>
+                      <th className="py-3 px-2.5 sm:px-3">Correo</th>
+                      <th className="py-3 px-2.5 sm:px-3">Teléfono</th>
+                      <th className="py-3 px-2.5 sm:px-3">Galería</th>
+                      <th className="py-3 px-2.5 sm:px-3">Tipo</th>
+                      <th className="py-3 px-2.5 sm:px-3">Archivo</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
@@ -2912,10 +2912,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           matchedGallery?.coverPhotoUrl;
                         const targetPhotoId =
                           log.type === 'single' ? matchedPhoto?.id || log.photoId : undefined;
+                        const dateObj = new Date(log.timestamp);
+                        const dateStr = dateObj.toLocaleDateString('es-MX', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        });
+                        const timeStr = dateObj.toLocaleTimeString('es-MX', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        });
 
                         return (
                           <tr key={log.id} className="hover:bg-white/[0.02] transition-colors">
-                            <td className="py-2.5 px-4">
+                            <td className="py-2.5 px-2.5 sm:px-3">
                               {thumbUrl ? (
                                 <button
                                   type="button"
@@ -2930,7 +2940,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                         : `Abrir galería ${matchedGallery.title}`
                                       : 'Galería no disponible'
                                   }
-                                  className={`group relative w-12 h-12 rounded-xl overflow-hidden bg-black/60 border border-white/10 shrink-0 block ${
+                                  className={`group relative w-10 h-10 rounded-lg overflow-hidden bg-black/60 border border-white/10 shrink-0 block ${
                                     matchedGallery
                                       ? 'cursor-pointer hover:border-amber-400/70'
                                       : 'cursor-default opacity-75'
@@ -2943,87 +2953,86 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                   />
                                   {matchedGallery && (
                                     <span className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-amber-300">
-                                      <Eye className="w-4 h-4" />
+                                      <Eye className="w-3.5 h-3.5" />
                                     </span>
                                   )}
                                 </button>
                               ) : (
-                                <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-zinc-500">
+                                <div className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-zinc-500">
                                   {log.type === 'zip' ? (
-                                    <FileArchive className="w-5 h-5 text-amber-400/70" />
+                                    <FileArchive className="w-4 h-4 text-amber-400/70" />
                                   ) : (
-                                    <ImageIcon className="w-5 h-5 text-cyan-400/70" />
+                                    <ImageIcon className="w-4 h-4 text-cyan-400/70" />
                                   )}
                                 </div>
                               )}
                             </td>
 
-                            <td className="py-3.5 px-4 font-mono text-zinc-400 whitespace-nowrap text-[11px]">
-                              {new Date(log.timestamp).toLocaleDateString('es-MX', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
+                            <td className="py-2.5 px-2.5 sm:px-3 font-mono text-zinc-400 whitespace-nowrap text-[10px] leading-tight">
+                              <span className="block text-zinc-300">{dateStr}</span>
+                              <span className="block text-zinc-500">{timeStr}</span>
                             </td>
 
-                            <td className="py-3.5 px-4 font-medium text-white whitespace-nowrap">
-                              <span className="flex items-center gap-2">
-                                <span className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-400 font-bold flex items-center justify-center text-[10px]">
+                            <td className="py-2.5 px-2.5 sm:px-3 font-medium text-white max-w-[140px]">
+                              <span className="flex items-center gap-1.5 min-w-0">
+                                <span className="w-5 h-5 rounded-full bg-amber-500/10 text-amber-400 font-bold flex items-center justify-center text-[10px] shrink-0">
                                   {log.userName.charAt(0).toUpperCase()}
                                 </span>
-                                {log.userName}
+                                <span className="truncate" title={log.userName}>
+                                  {log.userName}
+                                </span>
                               </span>
                             </td>
 
-                            <td className="py-3.5 px-4 font-mono text-zinc-300 whitespace-nowrap">
+                            <td className="py-2.5 px-2.5 sm:px-3 font-mono text-zinc-300 max-w-[180px]">
                               <a
                                 href={`mailto:${log.userEmail}?subject=Entrega de Fotografías Lente Abierto MX - ${encodeURIComponent(log.galleryTitle)}`}
-                                className="hover:text-amber-400 flex items-center gap-1.5 transition-colors"
-                                title="Enviar correo"
+                                className="hover:text-amber-400 flex items-center gap-1 transition-colors min-w-0"
+                                title={log.userEmail}
                               >
-                                <Mail className="w-3.5 h-3.5 text-zinc-500 hover:text-amber-400" />
-                                <span>{log.userEmail}</span>
+                                <Mail className="w-3 h-3 text-zinc-500 shrink-0" />
+                                <span className="truncate text-[11px]">{log.userEmail}</span>
                               </a>
                             </td>
 
-                            <td className="py-3.5 px-4 font-mono text-zinc-400 whitespace-nowrap">
+                            <td className="py-2.5 px-2.5 sm:px-3 font-mono text-zinc-400 max-w-[125px]">
                               {log.userPhone ? (
                                 <a
                                   href={`https://wa.me/${log.userPhone.replace(/[^0-9]/g, '')}`}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="text-emerald-400/90 hover:text-emerald-300 flex items-center gap-1.5 transition-colors"
-                                  title="Abrir chat en WhatsApp"
+                                  className="text-emerald-400/90 hover:text-emerald-300 flex items-center gap-1 transition-colors min-w-0"
+                                  title={log.userPhone}
                                 >
-                                  <Phone className="w-3.5 h-3.5 text-emerald-400" />
-                                  <span>{log.userPhone}</span>
+                                  <Phone className="w-3 h-3 text-emerald-400 shrink-0" />
+                                  <span className="truncate text-[11px]">{log.userPhone}</span>
                                 </a>
                               ) : (
-                                <span className="text-zinc-600 italic">No registrado</span>
+                                <span className="text-zinc-600 italic text-[11px]">No registrado</span>
                               )}
                             </td>
 
-                            <td className="py-3.5 px-4 text-zinc-300 font-medium">
+                            <td className="py-2.5 px-2.5 sm:px-3 text-zinc-300 font-medium max-w-[145px]">
                               {matchedGallery ? (
                                 <button
                                   type="button"
                                   onClick={() => onPreviewGallery(matchedGallery)}
-                                  className="hover:text-amber-400 text-left transition-colors"
-                                  title="Abrir galería"
+                                  className="hover:text-amber-400 text-left transition-colors line-clamp-2 text-[11px]"
+                                  title={log.galleryTitle}
                                 >
                                   {log.galleryTitle}
                                 </button>
                               ) : (
-                                log.galleryTitle
+                                <span className="line-clamp-2 text-[11px]" title={log.galleryTitle}>
+                                  {log.galleryTitle}
+                                </span>
                               )}
                             </td>
 
-                            <td className="py-3.5 px-4 whitespace-nowrap">
+                            <td className="py-2.5 px-2.5 sm:px-3 whitespace-nowrap">
                               {log.type === 'zip' ? (
                                 <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono text-[10px] uppercase tracking-wider">
-                                  Colección ZIP
+                                  ZIP
                                 </span>
                               ) : (
                                 <span className="px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-mono text-[10px] uppercase tracking-wider">
@@ -3032,18 +3041,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               )}
                             </td>
 
-                            <td className="py-3.5 px-4 text-zinc-400 text-[11px] max-w-[220px]">
+                            <td className="py-2.5 px-2.5 sm:px-3 text-zinc-400 text-[11px] max-w-[140px]">
                               {matchedGallery ? (
                                 <button
                                   type="button"
                                   onClick={() => onPreviewGallery(matchedGallery, targetPhotoId)}
-                                  className="text-left text-zinc-300 hover:text-amber-400 transition-colors truncate block max-w-[200px] underline-offset-2 hover:underline"
-                                  title="Ver fotografía en la galería"
+                                  className="text-left text-zinc-300 hover:text-amber-400 transition-colors truncate block w-full underline-offset-2 hover:underline"
+                                  title={`Ver ${log.photoTitle || 'fotografía'} en la galería`}
                                 >
                                   {log.photoTitle || 'Colección Completa'}
                                 </button>
                               ) : (
-                                <span className="truncate block max-w-[200px]">
+                                <span className="truncate block w-full" title={log.photoTitle || 'Colección Completa'}>
                                   {log.photoTitle || 'Colección Completa'}
                                 </span>
                               )}

@@ -199,7 +199,9 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
     const client = getClientSessionInfo();
     const needsPin = gallery.downloadPin && !isPinVerified;
 
-    if (!client || !client.email?.trim() || !client.phone?.trim() || needsPin) {
+    const hasValidPhone = Boolean(client?.phone && /^\d{10}$/.test(client.phone.trim()));
+
+    if (!client || !client.email?.trim() || !hasValidPhone || needsPin) {
       setPinActionType('full');
       setDownloadTargetPhoto(null);
       setPendingAction(() => handleStartZipDownload);
@@ -229,7 +231,9 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
       await downloadSingleCleanPhoto(photo, gallery.title, token);
     };
 
-    if (!client || !client.email?.trim() || !client.phone?.trim() || needsPin) {
+    const hasValidPhone = Boolean(client?.phone && /^\d{10}$/.test(client.phone.trim()));
+
+    if (!client || !client.email?.trim() || !hasValidPhone || needsPin) {
       setPinActionType('single');
       setDownloadTargetPhoto(photo);
       setPendingAction(() => action);
@@ -274,7 +278,9 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
     const isCurrentlyFav = favorites.includes(photo.id);
     const client = getClientSessionInfo();
 
-    if (!isCurrentlyFav && (!client || !client.email?.trim() || !client.phone?.trim())) {
+    const hasValidPhone = Boolean(client?.phone && /^\d{10}$/.test(client.phone.trim()));
+
+    if (!isCurrentlyFav && (!client || !client.email?.trim() || !hasValidPhone)) {
       setPendingFavPhoto(photo);
       setIsFavModalOpen(true);
       return;

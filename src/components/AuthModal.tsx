@@ -70,8 +70,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           setIsLoading(false);
           return;
         }
-        if (!phone.trim() || phone.replace(/\D/g, '').length < 10) {
-          setError('Por favor introduce un número de teléfono o WhatsApp válido (mínimo 10 dígitos).');
+        if (!/^\d{10}$/.test(phone.trim())) {
+          setError('El teléfono debe contener exactamente 10 dígitos numéricos (sin letras ni símbolos).');
           setIsLoading(false);
           return;
         }
@@ -235,15 +235,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {mode === 'register' && (
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-[10px] uppercase tracking-wider text-zinc-400 mb-1">
-                  Teléfono / WhatsApp *
+                <label className="block text-[10px] uppercase tracking-wider text-zinc-400 mb-1 flex items-center justify-between">
+                  <span>Teléfono (10 dígitos) *</span>
+                  <span className="font-mono text-zinc-500">{phone.length}/10</span>
                 </label>
                 <input
                   type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]{10}"
+                  maxLength={10}
                   required
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+52 777 000 0000"
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="7771234567"
                   className="w-full bg-[#181a1f] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/60"
                 />
               </div>

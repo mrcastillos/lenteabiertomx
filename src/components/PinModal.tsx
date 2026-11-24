@@ -66,12 +66,13 @@ export const PinModal: React.FC<PinModalProps> = ({
     if (isOpen) {
       const savedInfo = getClientSessionInfo();
       if (savedInfo && savedInfo.name && savedInfo.email) {
+        const cleanSavedPhone = (savedInfo.phone || '').trim();
+        const isValidTenDigits = /^\d{10}$/.test(cleanSavedPhone);
         setName(savedInfo.name || '');
         setEmail(savedInfo.email || '');
-        setPhone(savedInfo.phone || '');
-        const hasCompleteSession = Boolean(savedInfo.phone && savedInfo.phone.replace(/\D/g, '').length >= 10);
-        setHasExistingSession(hasCompleteSession);
-        setIsEditingSession(!hasCompleteSession);
+        setPhone(isValidTenDigits ? cleanSavedPhone : '');
+        setHasExistingSession(isValidTenDigits);
+        setIsEditingSession(!isValidTenDigits);
       } else {
         setHasExistingSession(false);
         setIsEditingSession(true);
@@ -106,11 +107,11 @@ export const PinModal: React.FC<PinModalProps> = ({
       return;
     }
 
-    // 2b. Validate Phone (mandatory)
-    const phoneDigits = phone.replace(/\D/g, '');
-    if (!phone.trim() || phoneDigits.length < 10) {
+    // 2b. Validate Phone (mandatory, strictly 10 numeric digits)
+    const cleanPhone = phone.trim();
+    if (!/^\d{10}$/.test(cleanPhone)) {
       setErrorField('phone');
-      setErrorMessage('Por favor introduce un número de teléfono o WhatsApp válido (mínimo 10 dígitos).');
+      setErrorMessage('El teléfono debe contener exactamente 10 dígitos numéricos (sin letras ni símbolos).');
       return;
     }
 
@@ -294,8 +295,8 @@ export const PinModal: React.FC<PinModalProps> = ({
                 {/* Teléfono */}
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-zinc-300 font-medium mb-1.5 flex items-center justify-between">
-                    <span>Teléfono / WhatsApp *</span>
-                    <span className="text-[10px] text-zinc-500">Obligatorio</span>
+                    <span>Teléfono / WhatsApp (10 dígitos) *</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">{phone.length}/10</span>
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
@@ -303,13 +304,17 @@ export const PinModal: React.FC<PinModalProps> = ({
                     </div>
                     <input
                       type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]{10}"
+                      maxLength={10}
                       required
                       value={phone}
                       onChange={(e) => {
-                        setPhone(e.target.value);
+                        const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        setPhone(digitsOnly);
                         if (errorField === 'phone') setErrorField(null);
                       }}
-                      placeholder="+52 777 000 0000"
+                      placeholder="Ej. 7771234567 (solo 10 dígitos)"
                       className={`w-full bg-[#181a1f] border text-sm text-white py-2.5 pl-10 pr-4 rounded-xl focus:outline-none transition-all ${
                         errorField === 'phone'
                           ? 'border-red-500/80 focus:ring-2 focus:ring-red-500/30 bg-red-950/20'
