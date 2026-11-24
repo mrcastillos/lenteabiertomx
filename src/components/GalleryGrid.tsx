@@ -142,15 +142,23 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
                 className="group cursor-pointer flex flex-col bg-[#121316] rounded-2xl overflow-hidden border border-white/5 hover:border-amber-500/30 transition-all duration-500 hover:-translate-y-1 shadow-xl hover:shadow-2xl hover:shadow-black/60"
               >
                 {/* Cover Thumbnail / Principal Icon of the Folder */}
-                <div className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-900">
+                <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#0c0d0e]">
+                  <img
+                    src={gallery.coverPhotoUrl}
+                    alt=""
+                    aria-hidden="true"
+                    loading="lazy"
+                    className="absolute inset-0 w-full h-full object-cover scale-110 blur-xl opacity-30 pointer-events-none select-none"
+                    draggable={false}
+                  />
                   <img
                     src={gallery.coverPhotoUrl}
                     alt={gallery.title}
                     loading="lazy"
-                    className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                    className="relative z-[1] w-full h-full object-contain transition-transform duration-700 ease-out group-hover:scale-[1.03]"
                     draggable={false}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#121316] via-transparent to-black/30" />
+                  <div className="absolute inset-0 z-[2] bg-gradient-to-t from-[#121316] via-transparent to-black/30 pointer-events-none" />
 
                   {/* Top Badges */}
                   <div className="absolute top-3 left-3 right-3 flex items-start justify-between gap-2 z-10">

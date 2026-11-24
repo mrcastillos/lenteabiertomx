@@ -388,13 +388,24 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
         </div>
       </nav>
 
-      {/* Editorial Clean Hero Cover Banner (Zero text overlaid on the image) */}
-      <section className="w-full overflow-hidden border-b border-white/5 bg-black/20">
-        <div className="relative w-full h-[38vh] sm:h-[48vh] lg:h-[60vh] min-h-[240px] max-h-[600px]">
+      {/* Editorial Clean Hero Cover Banner (Full intact photo scaled proportionally for all screens) */}
+      <section className="relative w-full overflow-hidden border-b border-white/5 bg-[#0c0d0e]">
+        <img
+          src={gallery.coverPhotoUrl}
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-25 pointer-events-none select-none"
+          draggable={false}
+        />
+        <div
+          className="absolute inset-0 bg-gradient-to-b from-[#0c0d0e]/50 via-[#0c0d0e]/35 to-[#0c0d0e]/75 pointer-events-none"
+          aria-hidden="true"
+        />
+        <div className="relative z-10 w-full max-w-6xl mx-auto px-3 sm:px-8 py-4 sm:py-6 flex items-center justify-center">
           <img
             src={gallery.coverPhotoUrl}
             alt={gallery.title}
-            className="w-full h-full object-cover object-center select-none"
+            className="w-auto h-auto max-w-full max-h-[48vh] sm:max-h-[58vh] lg:max-h-[66vh] object-contain rounded-lg sm:rounded-xl shadow-2xl border border-white/10 select-none"
             draggable={false}
           />
         </div>
