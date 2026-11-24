@@ -43,7 +43,9 @@ import {
   ArrowUp,
   ArrowDown,
   FileArchive,
+  FileDown,
 } from 'lucide-react';
+import { PortfolioExportModal } from './PortfolioExportModal';
 import {
   Gallery,
   Photo,
@@ -150,6 +152,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isDeletingGallery, setIsDeletingGallery] = useState(false);
   const [driveLinkPromptGallery, setDriveLinkPromptGallery] = useState<Gallery | null>(null);
   const [driveLinkPromptInput, setDriveLinkPromptInput] = useState('');
+  const [isPortfolioExportOpen, setIsPortfolioExportOpen] = useState(false);
 
   // Super Admin Database Tools State
   const [dbStats, setDbStats] = useState<{ collections: DatabaseCollectionStat[]; totalDocs: number; totalBytes: number } | null>(null);
@@ -969,16 +972,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </div>
         </div>
 
-        {onLockAdmin && (
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <button
-            onClick={onLockAdmin}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-red-950/30 hover:bg-red-900/40 text-red-300 border border-red-500/30 text-xs tracking-wider uppercase transition-colors"
-            title="Bloquear backend y salir del modo administrador"
+            type="button"
+            onClick={() => setIsPortfolioExportOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase transition-all shadow-lg shadow-amber-500/20"
+            title="Generar y descargar dossier profesional en PDF con tus galerías y datos del CMS"
           >
-            <Lock className="w-3.5 h-3.5" />
-            <span>Bloquear Backend</span>
+            <FileDown className="w-3.5 h-3.5" />
+            <span>Exportar Portafolio (PDF)</span>
           </button>
-        )}
+
+          {onLockAdmin && (
+            <button
+              onClick={onLockAdmin}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-red-950/30 hover:bg-red-900/40 text-red-300 border border-red-500/30 text-xs tracking-wider uppercase transition-colors"
+              title="Bloquear backend y salir del modo administrador"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Bloquear Backend</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tab switcher */}
@@ -6708,6 +6723,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </div>
         </div>
       )}
+      {/* Editorial Portfolio PDF Export Modal */}
+      <PortfolioExportModal
+        isOpen={isPortfolioExportOpen}
+        onClose={() => setIsPortfolioExportOpen(false)}
+        galleries={galleries}
+        siteContent={cmsContent}
+        favoriteLogs={favoriteLogs}
+      />
     </div>
   );
 };
