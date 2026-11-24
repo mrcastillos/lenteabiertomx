@@ -46,6 +46,7 @@ import {
   FileDown,
 } from 'lucide-react';
 import { PortfolioExportModal } from './PortfolioExportModal';
+import { AdminNotificationBell } from './AdminNotificationBell';
 import {
   Gallery,
   Photo,
@@ -973,6 +974,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <AdminNotificationBell
+            downloadLogs={downloadLogs}
+            favoriteLogs={favoriteLogs}
+            inquiries={inquiries}
+            onNavigateTab={(tab) => setActiveTab(tab)}
+          />
+
           <button
             type="button"
             onClick={() => setIsPortfolioExportOpen(true)}
