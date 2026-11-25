@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Lock, ArrowRight, ShieldCheck, Heart, Sparkles, MessageCircle } from 'lucide-react';
+import { Lock, ArrowRight, ShieldCheck, Heart, MessageCircle } from 'lucide-react';
 import { Gallery } from '../types';
 import { setGalleryPinVerifiedInSession, setClientSessionInfo, getClientSessionInfo } from '../services/storage';
+import { ThemedCameraIcon } from './ThemedCameraIcon';
 
 interface ClientPortalPageProps {
   galleries: Gallery[];
@@ -151,7 +152,7 @@ export const ClientPortalPage: React.FC<ClientPortalPageProps> = ({
 
         <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 text-center space-y-1.5">
           <div className="w-8 h-8 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto mb-2">
-            <Sparkles className="w-4 h-4" />
+            <ThemedCameraIcon variant="shutter" size={18} />
           </div>
           <h4 className="text-xs font-semibold text-white uppercase tracking-wider">
             Descargas en Alta Calidad

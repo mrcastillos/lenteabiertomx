@@ -111,6 +111,7 @@ import {
   DEFAULT_PHOTOGRAPHER_PROFILE,
 } from '../services/userService';
 import { THEME_PRESETS, DEFAULT_APPEARANCE } from '../utils/themePresets';
+import { ThemedCameraIcon } from './ThemedCameraIcon';
 import { googleSignIn, getAccessToken } from '../services/firebase';
 
 interface AdminPanelProps {
@@ -4100,21 +4101,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                 </p>
                               </div>
 
-                              <div className="flex items-center gap-1.5 pt-1">
-                                {[
-                                  preset.colors.backgroundColor,
-                                  preset.colors.surfaceColor,
-                                  preset.colors.headingColor,
-                                  preset.colors.textColor,
-                                  preset.colors.accentColor,
-                                ].map((hex, i) => (
-                                  <span
-                                    key={i}
-                                    className="w-5 h-5 rounded-full border border-white/20 shadow-sm"
-                                    style={{ backgroundColor: hex }}
-                                    title={hex}
-                                  />
-                                ))}
+                              <div className="flex items-center justify-between gap-2 pt-1">
+                                <div className="flex items-center gap-1.5">
+                                  {[
+                                    preset.colors.backgroundColor,
+                                    preset.colors.surfaceColor,
+                                    preset.colors.headingColor,
+                                    preset.colors.textColor,
+                                    preset.colors.accentColor,
+                                  ].map((hex, i) => (
+                                    <span
+                                      key={i}
+                                      className="w-4 h-4 rounded-full border border-white/20 shadow-sm"
+                                      style={{ backgroundColor: hex }}
+                                      title={hex}
+                                    />
+                                  ))}
+                                </div>
+
+                                <div
+                                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-black/40 border border-white/10"
+                                  style={{ color: preset.colors.accentColor }}
+                                  title="Vista previa de viñetas del tema"
+                                >
+                                  <ThemedCameraIcon variant="camera" preset={preset.id} size={15} />
+                                  <ThemedCameraIcon variant="shutter" preset={preset.id} size={15} />
+                                  <ThemedCameraIcon variant="vintage" preset={preset.id} size={15} />
+                                  <ThemedCameraIcon variant="lens" preset={preset.id} size={15} />
+                                </div>
                               </div>
                             </button>
                           );

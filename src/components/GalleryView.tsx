@@ -7,7 +7,6 @@ import {
   Lock,
   Check,
   ShieldCheck,
-  Camera,
   Layers,
   Sparkles,
   Eye,
@@ -18,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Gallery, Photo, PhotoSortOrder } from '../types';
 import { WatermarkCanvas } from './WatermarkCanvas';
+import { ThemedCameraIcon, ThemedVignetteDivider } from './ThemedCameraIcon';
 import { PhotoLightbox } from './PhotoLightbox';
 import { PinModal } from './PinModal';
 import { FavoriteAuthModal } from './FavoriteAuthModal';
@@ -449,7 +449,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
                 />
               ) : (
                 <div className="w-8 h-8 rounded-md bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
-                  <Camera className="w-4 h-4 text-amber-400" />
+                  <ThemedCameraIcon variant="camera" size={18} className="text-amber-400" />
                 </div>
               )}
               <span className="text-[11px] font-mono uppercase tracking-[0.22em] text-zinc-400 truncate max-w-[200px]">
@@ -493,7 +493,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
               )}
               {gallery.clientName && <span aria-hidden="true">·</span>}
               <span className="inline-flex items-center gap-1.5 tabular-nums">
-                <Camera className="w-3.5 h-3.5 text-amber-400" />
+                <ThemedCameraIcon variant="camera" size={15} className="text-amber-400" />
                 {gallery.photos.length} Fotografías
               </span>
               <span aria-hidden="true">·</span>
@@ -536,6 +536,8 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
               )}
             </div>
           </div>
+
+          <ThemedVignetteDivider variant="shutter" className="pt-2" />
         </div>
       </header>
 

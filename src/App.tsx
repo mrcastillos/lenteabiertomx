@@ -47,6 +47,8 @@ import {
   subscribeToFavoriteLogs,
 } from './services/firestoreSync';
 import { DEFAULT_APPEARANCE, getReadableContrastColor, isLightColor } from './utils/themePresets';
+import { ThemePresetContext } from './components/ThemedCameraIcon';
+import { attachGlobalShutterClickListener } from './utils/shutterSound';
 
 type AppTab = 'galleries' | 'biography' | 'contact' | 'portal' | 'admin' | 'profile';
 
@@ -159,7 +161,11 @@ export default function App() {
     // Retry any locally backed-up favorite/download logs that failed previously
     flushPendingCloudLogs(true).catch(() => {});
 
+    // Single-shot mechanical camera shutter click feedback on interactive clicks
+    const detachShutterListener = attachGlobalShutterClickListener();
+
     return () => {
+      detachShutterListener();
       window.removeEventListener('popstate', handlePopState);
       unsubGalleries();
       unsubContent();
@@ -582,9 +588,11 @@ export default function App() {
     setCurrentTab('biography');
   };
 
+  const activePreset = (siteContent?.appearance || DEFAULT_APPEARANCE).preset || 'default';
   const isLightTheme = isLightColor((siteContent?.appearance || DEFAULT_APPEARANCE).backgroundColor);
 
   return (
+    <ThemePresetContext.Provider value={activePreset}>
     <div
       className={`min-h-screen flex flex-col font-sans ${currentTab === 'admin' && isAdmin ? 'bg-[#0c0d0e] text-[#e6e8eb]' : 'site-theme-scope'}`}
       data-theme-light={isLightTheme ? 'true' : 'false'}
@@ -858,6 +866,7 @@ export default function App() {
       {/* Global Cloud Save Status Toast / Error Popup */}
       <CloudSyncToast />
     </div>
+    </ThemePresetContext.Provider>
   );
 }
 

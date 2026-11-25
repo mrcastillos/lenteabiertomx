@@ -1,7 +1,8 @@
 import React from 'react';
-import { Camera, Award, Sparkles, MapPin, ArrowRight } from 'lucide-react';
+import { Award, MapPin, ArrowRight } from 'lucide-react';
 import { SiteContentConfig } from '../types';
 import { DEFAULT_SITE_CONTENT } from '../services/storage';
+import { ThemedCameraIcon, ThemedVignetteDivider, CameraIconVariant } from './ThemedCameraIcon';
 
 interface BiographyPageProps {
   onContactClick: () => void;
@@ -47,7 +48,7 @@ export const BiographyPage: React.FC<BiographyPageProps> = ({
 
         <div className="lg:col-span-7 space-y-6">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs uppercase tracking-[0.25em]">
-            <Sparkles className="w-3.5 h-3.5" />
+            <ThemedCameraIcon variant="vintage" size={16} className="text-amber-400" />
             <span>Biografía Profesional & Declaración Artística</span>
           </div>
 
@@ -114,12 +115,15 @@ export const BiographyPage: React.FC<BiographyPageProps> = ({
         </div>
       )}
 
+      {/* Editorial Vignette Divider */}
+      <ThemedVignetteDivider variant="shutter" label="Técnica & Visión" className="mb-16" />
+
       {/* Equipment & Technical Arsenal */}
       {bio.gear && bio.gear.length > 0 && (
         <div className="p-8 sm:p-12 rounded-3xl bg-[#121316] border border-white/5 mb-24">
           <div className="max-w-3xl mb-8">
             <div className="flex items-center gap-2 text-amber-400 text-xs uppercase tracking-widest mb-2 font-mono">
-              <Camera className="w-4 h-4" />
+              <ThemedCameraIcon variant="camera" size={18} className="text-amber-400" />
               <span>{bio.gearSectionBadge || 'Equipo & Tecnologías de Alta Gama'}</span>
             </div>
             <h2 className="font-editorial text-3xl sm:text-4xl text-white font-normal mb-3">
@@ -132,18 +136,25 @@ export const BiographyPage: React.FC<BiographyPageProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {bio.gear.map((g, idx) => (
-              <div key={idx} className="p-5 rounded-xl bg-black/40 border border-white/5">
-                <h4 className="text-xs uppercase font-mono tracking-wider text-amber-400 mb-2">{g.title}</h4>
-                <ul className="text-xs text-zinc-300 space-y-1.5 font-light">
-                  {(g.items || [])
-                    .filter((it) => it && it.trim().length > 0)
-                    .map((it, itemIdx) => (
-                      <li key={itemIdx}>• {it.trim()}</li>
-                    ))}
-                </ul>
-              </div>
-            ))}
+            {bio.gear.map((g, idx) => {
+              const gearVariants: CameraIconVariant[] = ['camera', 'lens', 'shutter', 'vintage'];
+              const iconVariant = gearVariants[idx % gearVariants.length];
+              return (
+                <div key={idx} className="p-5 rounded-xl bg-black/40 border border-white/5">
+                  <div className="flex items-center gap-2 mb-2.5 text-amber-400">
+                    <ThemedCameraIcon variant={iconVariant} size={16} />
+                    <h4 className="text-xs uppercase font-mono tracking-wider text-amber-400">{g.title}</h4>
+                  </div>
+                  <ul className="text-xs text-zinc-300 space-y-1.5 font-light">
+                    {(g.items || [])
+                      .filter((it) => it && it.trim().length > 0)
+                      .map((it, itemIdx) => (
+                        <li key={itemIdx}>• {it.trim()}</li>
+                      ))}
+                  </ul>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

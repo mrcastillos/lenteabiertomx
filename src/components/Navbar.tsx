@@ -1,6 +1,7 @@
 import React from 'react';
-import { Camera, Lock, LayoutDashboard, LogIn, LogOut } from 'lucide-react';
+import { Lock, LayoutDashboard, LogIn, LogOut } from 'lucide-react';
 import { UserProfile, SiteContentConfig } from '../types';
+import { ThemedCameraIcon } from './ThemedCameraIcon';
 
 interface NavbarProps {
   currentTab: 'galleries' | 'biography' | 'contact' | 'portal' | 'admin' | 'profile';
@@ -56,7 +57,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {generalConfig?.logoIconUrl ? (
               <img src={generalConfig.logoIconUrl} alt="Logo" className="w-full h-full object-cover" />
             ) : (
-              <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
+              <ThemedCameraIcon variant="camera" size={20} className="text-amber-400" />
             )}
           </div>
           <div>

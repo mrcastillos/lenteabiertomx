@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Lock, Camera, Search, MapPin, ArrowRight, ShieldCheck, Sparkles, Eye, Heart, Clock } from 'lucide-react';
+import { Lock, Search, MapPin, ArrowRight, ShieldCheck, Eye, Heart, Clock } from 'lucide-react';
 import { Gallery, SiteContentConfig, FavoriteLog } from '../types';
+import { ThemedCameraIcon } from './ThemedCameraIcon';
 import {
   getStoredCategories,
   DEFAULT_SITE_CONTENT,
@@ -53,7 +54,7 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
       <div className="text-center max-w-3xl mx-auto mb-14 space-y-4">
         {hero.badge && (
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs uppercase tracking-[0.25em]">
-            <Sparkles className="w-3.5 h-3.5" />
+            <ThemedCameraIcon variant="shutter" size={16} className="text-amber-400" />
             <span>{hero.badge}</span>
           </div>
         )}
@@ -112,7 +113,9 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
       {/* Galleries Grid */}
       {filtered.length === 0 ? (
         <div className="text-center py-20 bg-white/[0.02] border border-white/5 rounded-2xl p-8">
-          <Camera className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
+          <div className="mb-3 flex justify-center text-zinc-500">
+            <ThemedCameraIcon variant="vintage" size={44} />
+          </div>
           <h3 className="text-lg font-editorial text-zinc-300 mb-1">
             No se encontraron galerías
           </h3>
@@ -208,8 +211,8 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
 
                   {/* Photo counter overlay */}
                   <div className="absolute bottom-3 right-3 z-10">
-                    <span className="text-[11px] font-mono tracking-wider px-2 py-0.5 rounded bg-black/70 backdrop-blur-md text-zinc-300 border border-white/10 flex items-center gap-1">
-                      <Camera className="w-3 h-3 text-amber-400" />
+                    <span className="text-[11px] font-mono tracking-wider px-2 py-0.5 rounded bg-black/70 backdrop-blur-md text-zinc-300 border border-white/10 flex items-center gap-1.5">
+                      <ThemedCameraIcon variant="camera" size={14} className="text-amber-400" />
                       {gallery.photos.length} fotos
                     </span>
                   </div>

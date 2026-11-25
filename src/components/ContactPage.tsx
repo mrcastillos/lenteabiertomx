@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { Mail, Phone, MapPin, Send, CheckCircle2, MessageCircle, Sparkles, AlertCircle } from 'lucide-react';
+import { Mail, Phone, MapPin, Send, CheckCircle2, MessageCircle, AlertCircle } from 'lucide-react';
 import { BookingInquiry, SiteContentConfig } from '../types';
 import { saveInquiry, DEFAULT_SITE_CONTENT } from '../services/storage';
+import { ThemedCameraIcon } from './ThemedCameraIcon';
 
 interface ContactPageProps {
   contact?: SiteContentConfig['contact'];
@@ -94,7 +95,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({
     <div className="max-w-7xl mx-auto px-4 sm:px-8 py-14 sm:py-20 text-zinc-200">
       <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
         <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs uppercase tracking-[0.25em]">
-          <Sparkles className="w-3.5 h-3.5" />
+          <ThemedCameraIcon variant="lens" size={16} className="text-amber-400" />
           <span>Agenda & Cotizaciones</span>
         </div>
         <h1 className="font-editorial text-4xl sm:text-5xl lg:text-6xl text-white font-normal leading-[1.1]">
