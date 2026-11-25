@@ -3,6 +3,31 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
+function isSafePublicHttpUrl(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+    const host = parsed.hostname.toLowerCase();
+    if (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '::1' ||
+      host === '0.0.0.0' ||
+      host.endsWith('.local') ||
+      host.endsWith('.internal') ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^169\.254\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
+    ) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export default defineConfig(() => {
   return {
     base: './',
@@ -35,6 +60,11 @@ export default defineConfig(() => {
 
             try {
               const decoded = decodeURIComponent(targetUrl);
+              if (!isSafePublicHttpUrl(decoded)) {
+                res.statusCode = 403;
+                res.end('Forbidden URL');
+                return;
+              }
               const fetchRes = await fetch(decoded, {
                 headers: {
                   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
@@ -70,6 +100,33 @@ export default defineConfig(() => {
         },
       },
     ],
+    build: {
+      minify: 'esbuild',
+      cssMinify: true,
+      sourcemap: false,
+      chunkSizeWarningLimit: 900,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('node_modules/firebase') || id.includes('node_modules/@firebase')) {
+              return 'vendor-firebase';
+            }
+            if (id.includes('node_modules/jspdf') || id.includes('node_modules/qrcode')) {
+              return 'vendor-pdf';
+            }
+            if (id.includes('node_modules/jszip')) {
+              return 'vendor-zip';
+            }
+            if (id.includes('node_modules/lucide-react')) {
+              return 'vendor-icons';
+            }
+          },
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': path.resolve('.'),

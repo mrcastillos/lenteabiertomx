@@ -17,10 +17,13 @@
         "description": { "type": "string", "maxLength": 5000 },
         "accessPin": { "type": "string", "maxLength": 100 },
         "downloadPin": { "type": "string", "maxLength": 100 },
+        "watermark": { "type": "object" },
+        "photos": { "type": "array", "maxItems": 2000 },
         "isPrivate": { "type": "boolean" },
         "driveFolderId": { "type": "string", "maxLength": 200 },
         "expiresAt": { "type": "string", "maxLength": 40 },
         "viewsCount": { "type": "number" },
+        "displayOrder": { "type": "number" },
         "createdAt": { "type": "string", "maxLength": 64 },
         "updatedAt": { "type": "string", "maxLength": 64 }
       },
@@ -39,6 +42,8 @@
         "announcement": { "type": "object" },
         "biography": { "type": "object" },
         "contact": { "type": "object" },
+        "instagramPosts": { "type": "array", "maxItems": 50 },
+        "adminNotifications": { "type": "object" },
         "updatedAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["id"]
@@ -50,8 +55,8 @@
       "properties": {
         "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_@.\\-]+$" },
         "clientName": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "email": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "phone": { "type": "string", "maxLength": 60 },
+        "email": { "type": "string", "minLength": 5, "maxLength": 200 },
+        "phone": { "type": "string", "maxLength": 20 },
         "serviceType": { "type": "string", "maxLength": 150 },
         "eventDate": { "type": "string", "maxLength": 100 },
         "location": { "type": "string", "maxLength": 250 },
@@ -60,7 +65,7 @@
         "status": { "type": "string", "enum": ["nuevo", "contactado", "confirmado"] },
         "createdAt": { "type": "string", "maxLength": 64 }
       },
-      "required": ["id", "clientName", "email", "message"]
+      "required": ["id", "clientName", "email", "message", "status", "createdAt"]
     },
     "DownloadLog": {
       "title": "DownloadLog",
@@ -72,13 +77,15 @@
         "galleryTitle": { "type": "string", "maxLength": 300 },
         "photoId": { "type": "string", "maxLength": 200 },
         "photoTitle": { "type": "string", "maxLength": 300 },
+        "photoUrl": { "type": "string", "maxLength": 2000 },
+        "photoThumbnailUrl": { "type": "string", "maxLength": 2000 },
         "type": { "type": "string", "enum": ["single", "zip"] },
         "userName": { "type": "string", "maxLength": 200 },
-        "userEmail": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "userPhone": { "type": "string", "maxLength": 60 },
+        "userEmail": { "type": "string", "minLength": 5, "maxLength": 200 },
+        "userPhone": { "type": "string", "maxLength": 20 },
         "timestamp": { "type": "string", "maxLength": 64 }
       },
-      "required": ["id", "galleryId", "type", "userEmail"]
+      "required": ["id", "galleryId", "type", "userEmail", "timestamp"]
     },
     "FavoriteLog": {
       "title": "FavoriteLog",
@@ -93,11 +100,11 @@
         "photoUrl": { "type": "string", "maxLength": 2000 },
         "photoThumbnailUrl": { "type": "string", "maxLength": 2000 },
         "userName": { "type": "string", "maxLength": 200 },
-        "userEmail": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "userPhone": { "type": "string", "maxLength": 60 },
+        "userEmail": { "type": "string", "minLength": 5, "maxLength": 200 },
+        "userPhone": { "type": "string", "maxLength": 20 },
         "timestamp": { "type": "string", "maxLength": 64 }
       },
-      "required": ["id", "galleryId", "photoId", "userEmail"]
+      "required": ["id", "galleryId", "photoId", "userEmail", "timestamp"]
     },
     "UserProfile": {
       "title": "UserProfile",
@@ -108,13 +115,21 @@
         "name": { "type": "string", "minLength": 1, "maxLength": 200 },
         "email": { "type": "string", "minLength": 1, "maxLength": 200 },
         "role": { "type": "string", "enum": ["fotografo", "cliente", "admin", "colaborador", "asistente", "editor"] },
+        "password": { "type": "string", "maxLength": 200 },
+        "pin": { "type": "string", "maxLength": 100 },
         "phone": { "type": "string", "maxLength": 60 },
         "whatsapp": { "type": "string", "maxLength": 60 },
         "instagram": { "type": "string", "maxLength": 120 },
         "location": { "type": "string", "maxLength": 200 },
         "bio": { "type": "string", "maxLength": 1500 },
         "detailedBio": { "type": "string", "maxLength": 8000 },
-        "avatarUrl": { "type": "string", "maxLength": 500000 }
+        "specialties": { "type": "array", "maxItems": 40 },
+        "equipmentList": { "type": "array", "maxItems": 60 },
+        "website": { "type": "string", "maxLength": 500 },
+        "assignedGalleries": { "type": "array", "maxItems": 200 },
+        "avatarUrl": { "type": "string", "maxLength": 500000 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["id", "name", "email", "role"]
     }
@@ -126,7 +141,7 @@
     },
     "/siteConfig/{configId}": {
       "schema": "SiteContent",
-      "description": "Site configuration, theme, bio, and contact info"
+      "description": "Site configuration, theme, bio, notifications state, and contact info"
     },
     "/inquiries/{inquiryId}": {
       "schema": "Inquiry",

@@ -16,9 +16,30 @@ service cloud.firestore {
         (data[key] is string && data[key].size() <= maxLen);
     }
 
-    // Helper: Validate Gallery payload structure and boundaries
+    // Helper: Optional list check (absent, null, or bounded list)
+    function isOptionalList(data, key, maxItems) {
+      return !(key in data) ||
+        data[key] == null ||
+        (data[key] is list && data[key].size() <= maxItems);
+    }
+
+    // Helper: Email syntax check for client logs & inquiries
+    function isValidEmail(val) {
+      return val is string &&
+        val.size() >= 5 &&
+        val.size() <= 200 &&
+        val.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]{2,}$');
+    }
+
+    // Helper: Validate Gallery payload structure, allowed keys, and boundaries
     function isValidGalleryData(data, galleryId) {
-      return data.keys().hasAll(['id', 'title', 'category', 'coverPhotoUrl']) &&
+      return data.keys().hasOnly([
+          'id', 'title', 'slug', 'clientName', 'clientEmail', 'eventDate',
+          'location', 'category', 'coverPhotoUrl', 'description', 'accessPin',
+          'downloadPin', 'watermark', 'photos', 'isPrivate', 'driveFolderId',
+          'createdAt', 'updatedAt', 'viewsCount', 'expiresAt', 'displayOrder'
+        ]) &&
+        data.keys().hasAll(['id', 'title', 'category', 'coverPhotoUrl']) &&
         data.id == galleryId &&
         data.title is string && data.title.size() >= 1 && data.title.size() <= 300 &&
         data.category is string && data.category.size() >= 1 && data.category.size() <= 100 &&
@@ -33,11 +54,48 @@ service cloud.firestore {
         isOptionalString(data, 'downloadPin', 100) &&
         isOptionalString(data, 'driveFolderId', 200) &&
         isOptionalString(data, 'expiresAt', 40) &&
-        (!('photos' in data) || (data.photos is list && data.photos.size() <= 2000)) &&
-        (!('viewsCount' in data) || data.viewsCount == null || (data.viewsCount is number && data.viewsCount >= 0));
+        isOptionalString(data, 'createdAt', 64) &&
+        isOptionalString(data, 'updatedAt', 64) &&
+        (!('isPrivate' in data) || data.isPrivate == null || data.isPrivate is bool) &&
+        (!('watermark' in data) || data.watermark == null || data.watermark is map) &&
+        isOptionalList(data, 'photos', 2000) &&
+        (!('viewsCount' in data) || data.viewsCount == null || (data.viewsCount is number && data.viewsCount >= 0)) &&
+        (!('displayOrder' in data) || data.displayOrder == null || (data.displayOrder is number && data.displayOrder >= 0));
     }
 
-    // Helper: Validate UserProfile payload and block legacy visible admin IDs/names
+    // Helper: Validate Admin Notifications read-state object
+    function isValidAdminNotifications(data) {
+      return !('adminNotifications' in data) ||
+        data.adminNotifications == null ||
+        (
+          data.adminNotifications is map &&
+          data.adminNotifications.keys().hasOnly(['clearedBeforeMs', 'readIds']) &&
+          (!('clearedBeforeMs' in data.adminNotifications) || (data.adminNotifications.clearedBeforeMs is number && data.adminNotifications.clearedBeforeMs >= 0)) &&
+          (!('readIds' in data.adminNotifications) || (data.adminNotifications.readIds is list && data.adminNotifications.readIds.size() <= 300))
+        );
+    }
+
+    // Helper: Validate SiteConfig payload structure and bounds
+    function isValidSiteConfig(data) {
+      return data.keys().hasOnly([
+          'id', 'galleriesInitialized', 'appearance', 'general', 'hero',
+          'announcement', 'biography', 'contact', 'instagramPosts',
+          'adminNotifications', 'updatedAt'
+        ]) &&
+        (!('id' in data) || data.id == 'main') &&
+        (!('galleriesInitialized' in data) || data.galleriesInitialized == null || data.galleriesInitialized is bool) &&
+        (!('appearance' in data) || data.appearance == null || data.appearance is map) &&
+        (!('general' in data) || data.general == null || data.general is map) &&
+        (!('hero' in data) || data.hero == null || data.hero is map) &&
+        (!('announcement' in data) || data.announcement == null || data.announcement is map) &&
+        (!('biography' in data) || data.biography == null || data.biography is map) &&
+        (!('contact' in data) || data.contact == null || data.contact is map) &&
+        isOptionalList(data, 'instagramPosts', 50) &&
+        isOptionalString(data, 'updatedAt', 64) &&
+        isValidAdminNotifications(data);
+    }
+
+    // Helper: Validate UserProfile payload and block reserved visible admin IDs/names
     function isValidUserProfile(data, userId) {
       let lowerId = userId.lower();
       let lowerName = ('name' in data && data.name is string) ? data.name.lower() : '';
@@ -50,17 +108,32 @@ service cloud.firestore {
         lowerEmail != 'admin' &&
         lowerEmail != 'admi' &&
         !lowerEmail.matches('^admin@.*') &&
+        data.keys().hasOnly([
+          'id', 'name', 'email', 'role', 'password', 'pin', 'avatarUrl',
+          'phone', 'whatsapp', 'instagram', 'location', 'bio', 'detailedBio',
+          'specialties', 'equipmentList', 'website', 'assignedGalleries',
+          'createdAt', 'updatedAt'
+        ]) &&
         data.keys().hasAll(['id', 'name', 'email', 'role']) &&
         data.id == userId &&
         data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
         data.email is string && data.email.size() >= 1 && data.email.size() <= 200 &&
         data.role in ['fotografo', 'cliente', 'admin', 'colaborador', 'asistente', 'editor'] &&
+        isOptionalString(data, 'password', 200) &&
+        isOptionalString(data, 'pin', 100) &&
+        isOptionalString(data, 'avatarUrl', 500000) &&
         isOptionalString(data, 'phone', 60) &&
         isOptionalString(data, 'whatsapp', 60) &&
         isOptionalString(data, 'instagram', 120) &&
         isOptionalString(data, 'location', 200) &&
         isOptionalString(data, 'bio', 1500) &&
-        isOptionalString(data, 'detailedBio', 8000);
+        isOptionalString(data, 'detailedBio', 8000) &&
+        isOptionalString(data, 'website', 500) &&
+        isOptionalString(data, 'createdAt', 64) &&
+        isOptionalString(data, 'updatedAt', 64) &&
+        isOptionalList(data, 'specialties', 40) &&
+        isOptionalList(data, 'equipmentList', 60) &&
+        isOptionalList(data, 'assignedGalleries', 200);
     }
 
     // Deny-all default fallback for unknown collections
@@ -68,7 +141,7 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Galleries: Public read; validated writes & atomic viewsCount increments
+    // Galleries: Public read; strictly typed writes & bounded +1 atomic viewsCount increments
     match /galleries/{galleryId} {
       allow read: if true;
       allow create: if isValidId(galleryId) && isValidGalleryData(request.resource.data, galleryId);
@@ -76,61 +149,95 @@ service cloud.firestore {
         (
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewsCount']) &&
           request.resource.data.viewsCount is number &&
-          request.resource.data.viewsCount >= 0
+          request.resource.data.viewsCount >= 0 &&
+          (
+            !('viewsCount' in resource.data) ||
+            resource.data.viewsCount == null ||
+            request.resource.data.viewsCount <= resource.data.viewsCount + 1
+          )
         ) ||
         isValidGalleryData(request.resource.data, galleryId)
       );
       allow delete: if isValidId(galleryId);
     }
 
-    // Site Config (CMS): Single 'main' document, protected against accidental deletion
+    // Site Config (CMS): Single 'main' document, validated fields, protected against deletion
     match /siteConfig/{configId} {
       allow read: if true;
-      allow create, update: if configId == 'main' && request.resource.data.keys().size() <= 20;
+      allow create, update: if configId == 'main' && isValidSiteConfig(request.resource.data);
       allow delete: if false;
     }
 
-    // Client Inquiries / Cotizaciones: Immutable after submission except delete from admin
+    // Client Inquiries / Cotizaciones: Strict anti-spam schema on create, immutable afterwards
     match /inquiries/{inquiryId} {
       allow read: if true;
       allow create: if isValidId(inquiryId) &&
-        request.resource.data.keys().hasAll(['id', 'clientName', 'email', 'message']) &&
+        request.resource.data.keys().hasOnly([
+          'id', 'clientName', 'email', 'phone', 'serviceType',
+          'eventDate', 'location', 'budgetRange', 'message', 'createdAt', 'status'
+        ]) &&
+        request.resource.data.keys().hasAll(['id', 'clientName', 'email', 'message', 'status', 'createdAt']) &&
         request.resource.data.id == inquiryId &&
         request.resource.data.clientName is string &&
         request.resource.data.clientName.size() >= 1 &&
         request.resource.data.clientName.size() <= 200 &&
-        request.resource.data.email is string &&
-        request.resource.data.email.size() >= 1 &&
-        request.resource.data.email.size() <= 200 &&
+        isValidEmail(request.resource.data.email) &&
         request.resource.data.message is string &&
         request.resource.data.message.size() >= 1 &&
-        request.resource.data.message.size() <= 5000;
+        request.resource.data.message.size() <= 5000 &&
+        request.resource.data.status == 'nuevo' &&
+        isOptionalString(request.resource.data, 'phone', 20) &&
+        isOptionalString(request.resource.data, 'serviceType', 150) &&
+        isOptionalString(request.resource.data, 'eventDate', 100) &&
+        isOptionalString(request.resource.data, 'location', 250) &&
+        isOptionalString(request.resource.data, 'budgetRange', 150) &&
+        request.resource.data.createdAt is string &&
+        request.resource.data.createdAt.size() >= 1 &&
+        request.resource.data.createdAt.size() <= 64;
       allow update: if false;
       allow delete: if isValidId(inquiryId);
     }
 
-    // Download Audit Logs: Validated append-only logs, removable by admin
+    // Download Audit Logs: Strict key allowlist & valid email check, append-only
     match /downloadLogs/{logId} {
       allow read: if true;
       allow create: if isValidId(logId) &&
-        request.resource.data.keys().hasAll(['id', 'galleryId', 'type', 'userEmail']) &&
+        request.resource.data.keys().hasOnly([
+          'id', 'galleryId', 'galleryTitle', 'photoId', 'photoTitle',
+          'photoUrl', 'photoThumbnailUrl', 'type', 'userName',
+          'userEmail', 'userPhone', 'timestamp'
+        ]) &&
+        request.resource.data.keys().hasAll(['id', 'galleryId', 'type', 'userEmail', 'timestamp']) &&
         request.resource.data.id == logId &&
         request.resource.data.galleryId is string &&
         request.resource.data.galleryId.size() >= 1 &&
         request.resource.data.galleryId.size() <= 128 &&
         request.resource.data.type in ['single', 'zip'] &&
-        request.resource.data.userEmail is string &&
-        request.resource.data.userEmail.size() >= 1 &&
-        request.resource.data.userEmail.size() <= 200;
+        isValidEmail(request.resource.data.userEmail) &&
+        isOptionalString(request.resource.data, 'galleryTitle', 300) &&
+        isOptionalString(request.resource.data, 'photoId', 200) &&
+        isOptionalString(request.resource.data, 'photoTitle', 300) &&
+        isOptionalString(request.resource.data, 'photoUrl', 2000) &&
+        isOptionalString(request.resource.data, 'photoThumbnailUrl', 2000) &&
+        isOptionalString(request.resource.data, 'userName', 200) &&
+        isOptionalString(request.resource.data, 'userPhone', 20) &&
+        request.resource.data.timestamp is string &&
+        request.resource.data.timestamp.size() >= 1 &&
+        request.resource.data.timestamp.size() <= 64;
       allow update: if false;
       allow delete: if isValidId(logId);
     }
 
-    // Favorites Audit Logs: Validated creation and removal
+    // Favorites Audit Logs: Strict key allowlist & valid email check, append-only
     match /favoriteLogs/{logId} {
       allow read: if true;
       allow create: if isValidId(logId) &&
-        request.resource.data.keys().hasAll(['id', 'galleryId', 'photoId', 'userEmail']) &&
+        request.resource.data.keys().hasOnly([
+          'id', 'galleryId', 'galleryTitle', 'photoId', 'photoTitle',
+          'photoUrl', 'photoThumbnailUrl', 'userName',
+          'userEmail', 'userPhone', 'timestamp'
+        ]) &&
+        request.resource.data.keys().hasAll(['id', 'galleryId', 'photoId', 'userEmail', 'timestamp']) &&
         request.resource.data.id == logId &&
         request.resource.data.galleryId is string &&
         request.resource.data.galleryId.size() >= 1 &&
@@ -138,14 +245,21 @@ service cloud.firestore {
         request.resource.data.photoId is string &&
         request.resource.data.photoId.size() >= 1 &&
         request.resource.data.photoId.size() <= 200 &&
-        request.resource.data.userEmail is string &&
-        request.resource.data.userEmail.size() >= 1 &&
-        request.resource.data.userEmail.size() <= 200;
+        isValidEmail(request.resource.data.userEmail) &&
+        isOptionalString(request.resource.data, 'galleryTitle', 300) &&
+        isOptionalString(request.resource.data, 'photoTitle', 300) &&
+        isOptionalString(request.resource.data, 'photoUrl', 2000) &&
+        isOptionalString(request.resource.data, 'photoThumbnailUrl', 2000) &&
+        isOptionalString(request.resource.data, 'userName', 200) &&
+        isOptionalString(request.resource.data, 'userPhone', 20) &&
+        request.resource.data.timestamp is string &&
+        request.resource.data.timestamp.size() >= 1 &&
+        request.resource.data.timestamp.size() <= 64;
       allow update: if false;
       allow delete: if isValidId(logId);
     }
 
-    // User Profiles: Validated schemas, blocking visible 'admin'/'admi' documents
+    // User Profiles: Validated schemas & key allowlists, blocking reserved admin docs
     match /users/{userId} {
       allow read: if true;
       allow create, update: if isValidId(userId) && isValidUserProfile(request.resource.data, userId);
